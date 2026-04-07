@@ -9,6 +9,7 @@
 **Code red**: Off
 **Current owner path**: `bin/repo-state`, `brew fetch`, `brew install --build-from-source`, `brew test`, `brew audit`
 **Current verification target**: `brew update && brew upgrade sive lgtvctrl` exits 0.
+**Open issue**: `lgtvctrl` `tv --version` reports `0.6.5.dev18+...` instead of `0.1.0` — stale `_version.py` in the commit tarball (setuptools_scm cannot regenerate without git metadata). Fix requires committing a correct `_version.py` to `lgtvctrl` before tagging, or pushing the `0.1.0` tag to remote so `sive` can also use a proper tag URL.
 
 ---
 
@@ -38,3 +39,33 @@ Confirmed. Patched `sive.rb` to commit archive + explicit `version "0.1.0"`. Pat
 ### Next action
 
 Commit, push, run `brew update && brew upgrade sive lgtvctrl`.
+
+---
+
+## Entry 2
+
+**Timestamp**: 2026-04-07 10:35
+**Phase**: Verify
+
+### Hypothesis
+
+After pushing corrected formula URLs to GitHub, `brew update && brew upgrade` would download and install both packages without 404 errors.
+
+### Experiment or reconnaissance
+
+Committed and pushed formula fixes + bootstrap files. Ran `brew update && brew upgrade sive lgtvctrl`. Then ran `sive --version` and `tv --version`.
+
+### Observation
+
+- `sive --version` → `sive 0.1.0 (36205c4)` ✓
+- `tv --version` → `tv 0.6.5.dev18+g7157926f5.d20260330` ⚠️
+- `lgtvctrl 0.1.0` was already installed; `brew upgrade` did not reinstall it.
+- `brew upgrade` exit 0.
+
+### Conclusion
+
+Download 404s are resolved. `sive` is correct. `lgtvctrl` installs without error but `tv --version` reports the wrong version string because `src/lgtvctrl/_version.py` in the tarball contains a stale dev version — setuptools_scm cannot regenerate it from a tarball with no git metadata. Formula test `assert_match version.to_s` would fail.
+
+### Next action
+
+Fix `lgtvctrl` upstream: commit `__version__ = "0.1.0"` to `_version.py` before tagging, then re-tag and push `0.1.0`. Also push the `sive` `0.1.0` tag to remote so the formula can use a clean tag URL instead of a commit archive.
