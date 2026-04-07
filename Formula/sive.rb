@@ -5,6 +5,7 @@ class Sive < Formula
   sha256 "5a2c20ab2e78df86d18967efe231bae84b2465eff07465e0f2090f16450d4080"
   license "MIT"
 
+  depends_on "cryptography"
   depends_on "python@3.13"
   depends_on "uv" => :build
 
