@@ -1,24 +1,57 @@
 # brew
 
-Public Homebrew tap for Hyprspace.
+Public Homebrew tap for PeachlifeAB.
 
 ## Install
 
 ```bash
 brew tap PeachlifeAB/tap
-brew install --cask hyprspace
+```
+
+## Formulas
+
+### bgtail
+
+Run long-running commands detached with minimal heartbeat.
+
+```bash
+brew install PeachlifeAB/tap/bgtail
+```
+
+### lgtvctrl
+
+Command-line control for LG WebOS TVs.
+
+```bash
+brew install PeachlifeAB/tap/lgtvctrl
+```
+
+### sive
+
+Sync secrets from your vault into your shell.
+
+```bash
+brew install PeachlifeAB/tap/sive
+```
+
+## Casks
+
+### hyprspace
+
+```bash
+brew install --cask PeachlifeAB/tap/hyprspace
 ```
 
 ## Update
 
 ```bash
-brew upgrade --cask hyprspace
+brew upgrade PeachlifeAB/tap/<name>
 ```
 
 ## Uninstall
 
 ```bash
-brew uninstall --cask hyprspace
+brew uninstall <name>
 brew untap PeachlifeAB/tap
 ```
 

@@ -5,12 +5,13 @@ class Sive < Formula
   sha256 "5a2c20ab2e78df86d18967efe231bae84b2465eff07465e0f2090f16450d4080"
   license "MIT"
 
+  depends_on "uv" => :build
   depends_on "cryptography"
   depends_on "python@3.13"
-  depends_on "uv" => :build
 
   def install
-    system "uv", "pip", "install", "--no-deps", "--python", Formula["python@3.13"].opt_bin/"python3.13", "--prefix", prefix, "."
+    python = Formula["python@3.13"].opt_bin/"python3.13"
+    system "uv", "pip", "install", "--no-deps", "--python", python, "--prefix", prefix, "."
   end
 
   test do

@@ -5,12 +5,13 @@ class Lgtvctrl < Formula
   sha256 "748fc418e617ecfc1c32ceac6ff15affeae88128c5b64365575b3de5c27408f0"
   license "MIT"
 
-  depends_on "python@3.13"
   depends_on "uv" => :build
   depends_on :macos
+  depends_on "python@3.13"
 
   def install
-    system "uv", "pip", "install", "--no-deps", "--python", Formula["python@3.13"].opt_bin/"python3.13", "--prefix", prefix, "."
+    python = Formula["python@3.13"].opt_bin/"python3.13"
+    system "uv", "pip", "install", "--no-deps", "--python", python, "--prefix", prefix, "."
   end
 
   test do
