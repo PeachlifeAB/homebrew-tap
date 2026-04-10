@@ -1,2 +1,7 @@
+# Local-only development files (not for public repo)
+AGENTS.md
+CLAUDE.md
 JOURNAL.md
-
+journal.md
+docs/DEVELOPMENT.md
+log/
