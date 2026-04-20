@@ -1,66 +1,33 @@
-# PeachlifeAB Homebrew Tap
+# brew
 
-Public Homebrew tap for PeachlifeAB tools.
+Public Homebrew tap for Hyprspace.
 
 ## Install
 
 ```bash
-brew tap peachlifeab/tap
+brew tap PeachlifeAB/tap
+brew install --cask hyprspace
 ```
-
-## Formulas
-
-### lgtvctrl
-
-Command-line control for LG WebOS TVs — power, input, screen, queries, and raw commands over WebSocket.
-
-```bash
-brew install peachlifeab/tap/lgtvctrl
-```
-
-Pre-built bottle available for Apple Silicon (arm64 Tahoe). Source: [PeachlifeAB/lgtvctrl](https://github.com/PeachlifeAB/lgtvctrl)
-
-### bgtail
-
-Run long-running commands detached with minimal heartbeat — background a command, reconnect later, get the log.
-
-```bash
-brew install peachlifeab/tap/bgtail
-```
-
-Source: [PeachlifeAB/bgtail](https://github.com/PeachlifeAB/bgtail)
-
-### sive
-
-Sync secrets from your vault into your shell.
-
-```bash
-brew install peachlifeab/tap/sive
-```
-
-Source: [PeachlifeAB/sive](https://github.com/PeachlifeAB/sive)
-
-## Casks
-
-### Hyprspace
-
-Tiling window manager based on AeroSpace. Requires macOS 15 (Sequoia) or later.
-
-```bash
-brew install --cask peachlifeab/tap/hyprspace
-```
-
-Homepage: [hyprspace.net](https://hyprspace.net/) · Source: [PeachlifeAB/hyprspace-core](https://github.com/PeachlifeAB/hyprspace-core) · Releases: [PeachlifeAB/hyprspace-releases](https://github.com/PeachlifeAB/hyprspace-releases)
 
 ## Update
 
 ```bash
-brew upgrade peachlifeab/tap/<name>
+brew upgrade --cask hyprspace
 ```
 
 ## Uninstall
 
 ```bash
-brew uninstall <name>
-brew untap peachlifeab/tap
+brew uninstall --cask hyprspace
+brew untap PeachlifeAB/tap
 ```
+
+## Public release surfaces
+
+The Hyprspace source repository is open-source at `PeachlifeAB/hyprspace-core`. Public release artifacts and public-facing documentation live in the following places:
+
+- Releases and manual downloads: https://github.com/PeachlifeAB/hyprspace-releases
+- Legal disclosure: https://github.com/PeachlifeAB/hyprspace-releases/blob/main/LEGAL.md
+- License: https://github.com/PeachlifeAB/hyprspace-releases/blob/main/LICENSE
+
+For version-specific release notes and published zip assets, use the GitHub Releases page in `PeachlifeAB/hyprspace-releases`.
