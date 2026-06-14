@@ -2,7 +2,7 @@ class Sive < Formula
   desc "Sync secrets from your vault into your shell"
   homepage "https://github.com/PeachlifeAB/sive"
   url "https://github.com/PeachlifeAB/sive/archive/refs/tags/0.1.2.tar.gz"
-  sha256 "d5558cd419c8d46bdc958064cb97f963d1ea793866414c025906ec15033512ed"
+  sha256 "dee6b9bf8342e8777d202575a3ce59e9bfd817f8078bb8ff97b856ccd1717db4"
   license "MIT"
 
   depends_on "uv" => :build
