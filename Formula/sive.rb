@@ -3,8 +3,8 @@ class Sive < Formula
 
   desc "Sync secrets from your vault into your shell"
   homepage "https://github.com/PeachlifeAB/sive"
-  url "https://github.com/PeachlifeAB/sive/releases/download/v0.1.6/sive-0.1.6.tar.gz"
-  sha256 "5affae1a9a7decfe5ef82e98c841665b44d5fac77babb123c4484f72bb3e6123"
+  url "https://github.com/PeachlifeAB/sive/releases/download/v0.1.7/sive-0.1.7.tar.gz"
+  sha256 "3fc8f41cb8709956c9e8c663a9583c8d78cfc39c0473d21cec9b1e9cbbe85139"
   license "MIT"
 
   depends_on "bitwarden-cli"
