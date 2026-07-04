@@ -7,7 +7,9 @@ class Sive < Formula
   sha256 "89bab2412af918902f881ce58a9a52f48a96de8cdad596baf2c350679c1cebaf"
   license "MIT"
 
+  depends_on "bitwarden-cli"
   depends_on "cryptography"
+  depends_on "mise"
   depends_on "python@3.13"
 
   def install
