@@ -1,0 +1,11 @@
+schema_version = 1
+name = "sive"
+repository = "PeachlifeAB/sive"
+formula = "sive"
+executable = "sive"
+package = "sive"
+tag_prefix = "v"
+asset_template = "sive-{version}.tar.gz"
+quality_task = "test"
+smoke_args = ["--version"]
+macos_only = true

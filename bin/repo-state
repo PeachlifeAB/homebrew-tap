@@ -12,14 +12,31 @@ git -C "$REPO" rev-parse HEAD
 git -C "$REPO" status --short
 
 echo "--- formulas ---"
-echo "sive.rb:"
-grep -E '^\s+(url|sha256|version)\s' "$REPO/Formula/sive.rb"
-echo "lgtvctrl.rb:"
-grep -E '^\s+(url|sha256|version)\s' "$REPO/Formula/lgtvctrl.rb"
+for formula in sive bgtail lgtvctrl; do
+    echo "$formula.rb:"
+    grep -E '^\s+(url|sha256|version)\s' "$REPO/Formula/$formula.rb"
+done
+
+echo "--- release automation ---"
+for path in \
+    bin/release \
+    release-products/sive.toml \
+    release-products/bgtail.toml \
+    .github/workflows/tests.yml \
+    .github/workflows/publish.yml; do
+    [[ -e "$REPO/$path" ]] && printf 'present: %s\n' "$path" || printf 'missing: %s\n' "$path"
+done
 
 echo "--- toolchain ---"
 { brew --version || true; } | head -1
+python3 --version
 ruby --version
+
+echo "--- installed products ---"
+for product in sive bgtail; do
+    command -v "$product" 2>/dev/null || echo "$product: not on PATH"
+    "$(brew --prefix)/bin/$product" --version 2>/dev/null || echo "$product: not installed by Homebrew"
+done
 
 echo "--- tap path ---"
 brew --repository PeachlifeAB/tap 2>/dev/null || echo "(tap not installed)"

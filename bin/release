@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+# ETA: <1s for observe/dry-run; remote release phases depend on GitHub/Homebrew CI.
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+TAP_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(TAP_ROOT))
+
+from release_engine.cli import main  # noqa: E402
+
+raise SystemExit(main())

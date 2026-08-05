@@ -12,6 +12,8 @@ class Sive < Formula
   depends_on "mise"
   depends_on "python@3.13"
 
+  pypi_packages exclude_packages: "cryptography"
+
   def install
     virtualenv_install_with_resources
   end

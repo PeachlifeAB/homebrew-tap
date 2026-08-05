@@ -1,0 +1,56 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Protocol
+
+
+class ProcessPort(Protocol):
+    def run(self, args: list[str], *, cwd: Path, capture: bool = False) -> str: ...
+
+    def read_bytes(self, args: list[str], *, cwd: Path) -> bytes: ...
+
+
+class FileSystemPort(Protocol):
+    def read_text(self, path: Path) -> str: ...
+
+    def write_text(self, path: Path, content: str) -> None: ...
+
+    def read_bytes(self, path: Path) -> bytes: ...
+
+
+class GitPort(Protocol):
+    def output(self, args: list[str], *, cwd: Path) -> str: ...
+
+    def run(self, args: list[str], *, cwd: Path) -> None: ...
+
+
+class GitHubPort(Protocol):
+    def release_exists(self, repository: str, tag: str) -> bool: ...
+
+    def tag_commit(self, repository: str, tag: str) -> str | None: ...
+
+
+class WorkflowPort(Protocol):
+    def wait_for_pull_request(
+        self, repository: str, branch: str
+    ) -> tuple[int, str]: ...
+
+    def publish(self, repository: str, pull_request: int, head_sha: str) -> None: ...
+
+
+class HomebrewPort(Protocol):
+    def update(self) -> None: ...
+
+    def upgrade(self, formula: str) -> None: ...
+
+    def test(self, formula: str) -> None: ...
+
+    def prefix(self) -> Path: ...
+
+
+class ClockPort(Protocol):
+    def now_iso(self) -> str: ...
+
+
+class HashPort(Protocol):
+    def sha256(self, content: bytes) -> str: ...

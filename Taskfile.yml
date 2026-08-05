@@ -1,0 +1,26 @@
+version: "3"
+
+tasks:
+  default:
+    cmd: task --list
+    silent: true
+
+  fmt:
+    desc: Verify release-engine Python formatting.
+    cmd: ruff format --check release_engine tests
+
+  lint:
+    desc: Lint release-engine Python.
+    cmd: ruff check release_engine tests
+
+  tests:
+    desc: Run isolated shared release-engine tests.
+    cmd: python3 -m unittest discover -s tests -v
+
+  test:
+    desc: Run every local release-engine quality gate.
+    cmds:
+      - task: fmt
+      - task: lint
+      - task: tests
+      - python3 -m compileall -q release_engine

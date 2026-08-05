@@ -1,0 +1,11 @@
+schema_version = 1
+name = "bgtail"
+repository = "PeachlifeAB/bgtail"
+formula = "bgtail"
+executable = "bgtail"
+package = "bgtail"
+tag_prefix = ""
+asset_template = "bgtail-{version}.tar.gz"
+quality_task = "test"
+smoke_args = ["--help"]
+macos_only = true
