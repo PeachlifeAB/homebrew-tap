@@ -72,7 +72,7 @@ class Lgtvctrl < Formula
 
     ENV["SETUPTOOLS_SCM_PRETEND_VERSION"] = version.to_s
 
-    python = Formula["python@3.13"].opt_bin/"python3.13"
+    python = formula_opt_bin("python@3.13")/"python3.13"
     venv = virtualenv_create(libexec, "python3.13")
     venv_python = libexec/"bin/python"
 

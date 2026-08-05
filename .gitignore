@@ -7,4 +7,5 @@ docs/DEVELOPMENT.md
 .codegraph/
 __pycache__/
 *.pyc
+steps_output.txt
 log/
