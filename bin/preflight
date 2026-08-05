@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Pre-deploy state study and release gate for one tap formula.
+#
+# Prints the current, freshly-read state of both the upstream repo and this tap,
+# then fails on any drift that has historically produced a broken release.
+# Run it immediately before every release: its whole purpose is to replace
+# remembered state with observed state.
+#
+# Usage: bin/preflight <formula> [--expect-version X.Y.Z]
+# ETA: ~5s (one network fetch of the upstream tarball).
+set -euo pipefail
+
+TAP="$(cd "$(dirname "$0")/.." && pwd)"
+SIBLING_ROOT="$(dirname "$TAP")"
+LIB="$TAP/bin/lib"
+
+# shellcheck source=lib/preflight-formula.sh
+source "$LIB/preflight-formula.sh"
+# shellcheck source=lib/preflight-state.sh
+source "$LIB/preflight-state.sh"
+# shellcheck source=lib/preflight-artifact.sh
+source "$LIB/preflight-artifact.sh"
+
+formula_name="${1:-}"
+[[ -n "$formula_name" ]] || die "usage: bin/preflight <formula> [--expect-version X.Y.Z]"
+shift
+
+expect_version=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --expect-version)
+        expect_version="${2:-}"
+        [[ -n "$expect_version" ]] || die "--expect-version requires a value"
+        shift 2
+        ;;
+    *) die "unknown argument: $1" ;;
+    esac
+done
+
+formula="$TAP/Formula/$formula_name.rb"
+[[ -f "$formula" ]] || die "no such formula: $formula"
+
+parse_formula "$formula"
+upstream_repo="$SIBLING_ROOT/${upstream_slug##*/}"
+
+printf '=== PREFLIGHT %s ===\n' "$formula_name"
+printf 'formula:  %s\n' "${formula#"$TAP"/}"
+printf 'url kind: %s\n' "$url_kind"
+printf 'tag:      %s\n' "${tag:-<unparsed>}"
+printf 'upstream: %s\n' "${upstream_slug:-<unparsed>}"
+
+study_upstream "$upstream_repo" "$upstream_slug" "$tag" "$expect_version"
+study_tap "$TAP"
+
+check_integrity "$url" "$sha_pinned"
+check_style_audit "$formula" "$formula_name"
+check_bottle "$formula" "$formula_name" "$tag"
+
+report_verdict "$formula_name"
