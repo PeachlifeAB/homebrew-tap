@@ -7,6 +7,11 @@ class Sive < Formula
   sha256 "6e59ac277dc133d88028683fed73f6906afd28cad4ad27084fd177ca2898840e"
   license "MIT"
 
+  bottle do
+    root_url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/sive-0.1.8"
+    sha256 cellar: :any_skip_relocation, arm64_tahoe: "90c6c9a3737e91384ce3271825457cd040761f16abb4fd832b76beab9fb20447"
+  end
+
   depends_on "bitwarden-cli"
   depends_on "cryptography"
   depends_on "mise"
