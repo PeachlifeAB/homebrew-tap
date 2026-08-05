@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import subprocess
 import time
 from pathlib import Path
 
@@ -151,6 +152,7 @@ class TapRelease:
         return pull_request
 
     def wait_and_publish(self, pull_request: int, head_sha: str) -> None:
+        self._wait_for_checks(pull_request)
         self.process.run(
             [
                 "gh",
@@ -240,6 +242,30 @@ class TapRelease:
             [str(self.tap_root / "bin" / "preflight"), self.manifest.formula],
             cwd=project_root,
         )
+
+    def _wait_for_checks(self, pull_request: int) -> None:
+        command = [
+            "gh",
+            "pr",
+            "checks",
+            str(pull_request),
+            "--repo",
+            self.tap_repository,
+            "--json",
+            "name,state",
+        ]
+        for _ in range(60):
+            result = subprocess.run(
+                command,
+                cwd=self.tap_root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0 and json.loads(result.stdout):
+                return
+            time.sleep(2)
+        raise ReleaseError("pull-request checks did not appear")
 
     def _latest_publish_run(self) -> str:
         raw = self.process.run(
