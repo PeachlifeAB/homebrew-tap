@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bgtail"
+version = "0.1.1"
+description = "Run long-running commands detached with minimal heartbeat"
+requires-python = ">=3.12"
+
+[project.scripts]
+bgtail = "bgtail:main_entry"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+packages = ["bgtail"]
+
+[tool.poe.tasks]
+# The release engine runs this with the package as its working directory.
+test = { sequence = [
+  { cmd = "ruff format --check ." },
+  { cmd = "ruff check ." },
+  { cmd = "pytest tests" },
+], help = "the package's release gate" }

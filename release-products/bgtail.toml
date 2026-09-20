@@ -1,11 +1,11 @@
 schema_version = 1
 name = "bgtail"
-repository = "PeachlifeAB/bgtail"
+repository = "PeachlifeAB/homebrew-tap"
 formula = "bgtail"
 executable = "bgtail"
 package = "bgtail"
-tag_prefix = ""
+tag_prefix = "bgtail-"
 asset_template = "bgtail-{version}.tar.gz"
 quality_task = "test"
-smoke_args = ["--help"]
-macos_only = true
+smoke_args = ["--project-log", "--no-log-popup", "echo", "release-smoke"]
+macos_only = false
