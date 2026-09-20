@@ -49,7 +49,7 @@ printf 'url kind: %s\n' "$url_kind"
 printf 'tag:      %s\n' "${tag:-<unparsed>}"
 printf 'upstream: %s\n' "${upstream_slug:-<unparsed>}"
 
-study_upstream "$upstream_repo" "$upstream_slug" "$tag" "$expect_version"
+study_upstream "$upstream_repo" "$upstream_slug" "$tag" "$expect_version" "$formula_name"
 study_tap "$TAP"
 
 check_integrity "$url" "$sha_pinned"

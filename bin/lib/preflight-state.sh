@@ -7,8 +7,23 @@
 
 # Gates the upstream repo. Sets: declared_version
 study_upstream() {
-  local repo="$1" slug="$2" tag="$3" expect_version="$4"
+  local repo="$1" slug="$2" tag="$3" expect_version="$4" formula_name="$5"
 
+  local package_root="${repo}/packages/${formula_name}"
+  local package_name="${formula_name}"
+  local monorepo_package=false
+  if [[ ! -f "${package_root}/pyproject.toml" ]]
+  then
+    package_root="${repo}"
+    package_name="${slug##*/}"
+  else
+    monorepo_package=true
+  fi
+  local tag_version="${tag#v}"
+  if [[ "${tag}" == "${formula_name}-"* ]]
+  then
+    tag_version="${tag#"${formula_name}"-}"
+  fi
   printf '\n=== UPSTREAM %s ===\n' "${slug:-?}"
   if [[ ! -d "${repo}/.git" ]]
   then
@@ -48,8 +63,9 @@ study_upstream() {
     warn "upstream branch ${branch} has no tracking branch"
   fi
 
-  # The tag must exist and point at the commit being released. A tag lagging
-  # HEAD is what produces a formula pinning code that was never shipped.
+  # The tag must exist. Single-product repositories must still point at HEAD;
+  # monorepo products may have later sibling or tap commits, so package state
+  # is checked against the tag's version below.
   local tag_commit behind
   if [[ -n "${tag}" ]]
   then
@@ -58,8 +74,15 @@ study_upstream() {
       tag_commit="$(git -C "${repo}" rev-parse --short "refs/tags/${tag}^{commit}")"
       behind="$(git -C "${repo}" rev-list --count "refs/tags/${tag}..HEAD")"
       printf 'tag %s -> %s (%s commit(s) behind HEAD)\n' "${tag}" "${tag_commit}" "${behind}"
-      [[ "${behind}" -eq 0 ]] ||
-        fail "tag ${tag} is ${behind} commit(s) behind HEAD; re-tag or release from the tagged commit"
+      if [[ "${behind}" -ne 0 ]]
+      then
+        if [[ "${monorepo_package}" == true ]]
+        then
+          warn "tag ${tag} is ${behind} commit(s) behind monorepo HEAD; package state is checked below"
+        else
+          fail "tag ${tag} is ${behind} commit(s) behind HEAD; re-tag or release from the tagged commit"
+        fi
+      fi
     else
       fail "tag ${tag} referenced by the formula does not exist upstream"
     fi
@@ -67,15 +90,14 @@ study_upstream() {
 
   # Declared version must agree with the tag, or `brew test` fails after the
   # release is already public.
-  declared_version="$(sed -n 's/^version = "\(.*\)"$/\1/p' "${repo}/pyproject.toml" 2>/dev/null)"
+  declared_version="$(sed -n 's/^version = "\(.*\)"$/\1/p' "${package_root}/pyproject.toml" 2>/dev/null)"
   declared_version="${declared_version%%$'\n'*}"
   if [[ -n "${declared_version}" ]]
   then
     printf 'pyproject version: %s\n' "${declared_version}"
-    # Tags may or may not carry a leading "v"; compare on the bare number.
-    if [[ -n "${tag}" && "${tag#v}" != "${declared_version}" ]]
+    if [[ -n "${tag}" && "${tag_version}" != "${declared_version}" ]]
     then
-      fail "pyproject version ${declared_version} != tag ${tag#v}"
+      fail "pyproject version ${declared_version} != tag ${tag_version}"
     fi
   else
     warn "pyproject.toml has no static version (dynamic versioning); verify _version.py is committed"
@@ -87,7 +109,7 @@ study_upstream() {
   if [[ -n "${declared_version}" && -f "${repo}/uv.lock" ]]
   then
     locked="$(awk '
-            /^name = "'"${slug##*/}"'"$/ { found = 1; next }
+            /^name = "'"${package_name}"'"$/ { found = 1; next }
             found && /^version = "/ { gsub(/^version = "|"$/, ""); print; exit }
         ' "${repo}/uv.lock")"
     if [[ -n "${locked}" ]]
@@ -100,7 +122,7 @@ study_upstream() {
 
   if [[ -n "${expect_version}" ]]
   then
-    [[ -n "${tag}" && "${tag#v}" == "${expect_version}" ]] ||
+    [[ -n "${tag}" && "${tag_version}" == "${expect_version}" ]] ||
       fail "expected version ${expect_version} but formula pins tag ${tag:-<none>}"
   fi
 }

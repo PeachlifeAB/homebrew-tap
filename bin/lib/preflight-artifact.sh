@@ -68,6 +68,11 @@ check_style_audit() {
 # DEVELOPMENT.md: "Always build and upload a bottle for every formula release."
 check_bottle() {
   local formula="$1" formula_name="$2" tag="$3"
+  local tag_version="${tag#v}"
+  if [[ "${tag}" == "${formula_name}-"* ]]
+  then
+    tag_version="${tag#"${formula_name}"-}"
+  fi
 
   if ! grep -q '^[[:space:]]*bottle do' "${formula}"
   then
@@ -79,6 +84,6 @@ check_bottle() {
   bottle_root="$(sed -n 's/^[[:space:]]*root_url "\(.*\)"[[:space:]]*$/\1/p' "${formula}")"
   bottle_root="${bottle_root%%$'\n'*}"
   printf 'bottle: present (%s)\n' "${bottle_root##*/}"
-  [[ -z "${tag}" || "${bottle_root##*/}" == "${formula_name}-${tag#v}" ]] ||
-    fail "bottle root_url points at ${bottle_root##*/}, expected ${formula_name}-${tag#v}"
+  [[ -z "${tag}" || "${bottle_root##*/}" == "${formula_name}-${tag_version}" ]] ||
+    fail "bottle root_url points at ${bottle_root##*/}, expected ${formula_name}-${tag_version}"
 }
