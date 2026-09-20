@@ -3,8 +3,8 @@ class Sive < Formula
 
   desc "Sync secrets from your vault into your shell"
   homepage "https://github.com/PeachlifeAB/sive"
-  url "https://github.com/PeachlifeAB/sive/releases/download/v0.1.8/sive-0.1.8.tar.gz"
-  sha256 "6e59ac277dc133d88028683fed73f6906afd28cad4ad27084fd177ca2898840e"
+  url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/sive-0.1.9/sive-0.1.9.tar.gz"
+  sha256 "a450ef59ac9ce2ab65b96c37d7c407c8920dac90eb91eec1f18e9f09ba6ffde9"
   license "MIT"
 
   livecheck do
@@ -13,10 +13,6 @@ class Sive < Formula
     regex(/^sive-v?(\d+(?:\.\d+)+)$/i)
   end
 
-  bottle do
-    root_url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/sive-0.1.8"
-    sha256 cellar: :any_skip_relocation, arm64_tahoe: "90c6c9a3737e91384ce3271825457cd040761f16abb4fd832b76beab9fb20447"
-  end
 
   depends_on "bitwarden-cli"
   depends_on "cryptography"
