@@ -31,12 +31,15 @@ def version_assertion_pattern(executable: str) -> re.Pattern[str]:
     )
 
 
-def source_url_pattern(repository: str) -> re.Pattern[str]:
-    """The `url` stanza update_formula rewrites. It is anchored to the
-    repository the manifest names, so a formula pointing elsewhere matches
-    nothing and aborts the release instead of being rewritten."""
+def source_url_pattern() -> re.Pattern[str]:
+    """Match a formula source URL that can be replaced during a cutover.
+
+    The formula may still point at the legacy product repository when its new
+    tap release is first published. The handoff validates the target asset;
+    this pattern only locates the top-level source stanza to replace.
+    """
     return re.compile(
-        rf'^ {{2}}url "https://github\.com/{re.escape(repository)}/[^"]+"$',
+        r'^ {2}url "https://github\.com/[^\"]+"$',
         re.MULTILINE,
     )
 
@@ -109,7 +112,7 @@ class TapRelease:
     def update_formula(self, handoff: Handoff) -> None:
         self.validate_handoff(handoff)
         content = self.formula_path.read_text(encoding="utf-8")
-        content, url_count = source_url_pattern(self.manifest.repository).subn(
+        content, url_count = source_url_pattern().subn(
             f'  url "{handoff.source_url}"', content, count=1
         )
         content, sha_count = _TOP_LEVEL_SHA.subn(

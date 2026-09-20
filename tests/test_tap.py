@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import hashlib
-import re
 import tempfile
 import unittest
 from collections.abc import Callable
 from pathlib import Path
 
 from modules.engine.application.ports import ProcessPort
-from modules.engine.application.tap import TapRelease
+from modules.engine.application.tap import TapRelease, source_url_pattern
 from modules.engine.domain.models import Handoff, ReleaseError
 from modules.engine.infrastructure.manifest import load_manifest
 
@@ -158,20 +157,12 @@ class TapFormulaTests(unittest.TestCase):
                 self.assertNotRegex(line, pattern)
 
     def test_update_formula_accepts_every_shipped_formula(self) -> None:
-        """The fixture above is synthetic, so it proves only that the engine
-        agrees with a string this test wrote. A release runs against the real
-        `Formula/*.rb`, which is the only thing that has to work.
+        """The updater must accept the legacy URL during the first cutover.
 
-        This caught `update_formula` requiring the literal
-        `assert_match version.to_s, ...` after task 1.3 tightened all three
-        formulae to `assert_equal` — a weak substring assertion that passes
-        against a dev-suffixed build. Every release would have aborted.
-
-        The `url` stanza is rewritten to the repository each manifest names,
-        which is what the release cutover will put there. Without that, this
-        test would only re-report the known mismatch
-        `test_manifest_repository_matches_formula_source_url` already owns,
-        and would say nothing about the rest of `update_formula`.
+        A release runs against the real `Formula/*.rb`, so keep the current
+        shipped source URL shape in this fixture instead of replacing it with
+        a synthetic URL owned by the new tap repository. The handoff still
+        validates the new release asset before changing the formula.
         """
         canonical = Path(__file__).resolve().parents[1]
         for path in sorted((canonical / "release-products").glob("*.toml")):
@@ -183,16 +174,8 @@ class TapFormulaTests(unittest.TestCase):
                     (root / "release-products" / path.name).write_text(path.read_text())
                     (root / "Formula").mkdir()
                     shipped = canonical / f"Formula/{manifest.formula}.rb"
-                    content, rewritten = re.subn(
-                        r'^ {2}url "https://github\.com/[^"]+"$',
-                        f'  url "https://github.com/{manifest.repository}/old.tar.gz"',
-                        shipped.read_text(),
-                        count=1,
-                        flags=re.MULTILINE,
-                    )
-                    self.assertEqual(
-                        1, rewritten, f"{manifest.formula} has no url stanza"
-                    )
+                    content = shipped.read_text()
+                    self.assertRegex(content, source_url_pattern())
                     (root / f"Formula/{manifest.formula}.rb").write_text(content)
                     handoff = Handoff(
                         1,

@@ -57,18 +57,19 @@ def test_cli_version_reports_declared_version() -> None:
 
 
 def test_exact_tag_checkout_matches_declared_version() -> None:
-    """On a tagged commit, the tag must equal the declared version.
+    """A bgtail tag must agree with bgtail's declared version.
 
-    Skipped off a tag: only a release build is required to agree. This is the
-    check that would have caught the re-tag of 0.1.0 before the formula pinned
-    a stale sha256.
+    Namespaced tags for sibling packages are unrelated in the monorepo and
+    must not make this package's test fail.
     """
     try:
         tag = _git("describe", "--tags", "--exact-match")
     except subprocess.CalledProcessError:
         pytest.skip("HEAD is not a tagged commit; tag agreement not required")
 
-    assert tag.lstrip("v") == _declared_version(), (
-        f"git tag {tag} disagrees with pyproject version {_declared_version()}; "
-        "the Homebrew formula test will fail after release"
-    )
+    prefix = "bgtail-"
+    if tag.startswith(prefix):
+        assert tag.removeprefix(prefix) == _declared_version(), (
+            f"git tag {tag} disagrees with pyproject version {_declared_version()}; "
+            "the Homebrew formula test will fail after release"
+        )

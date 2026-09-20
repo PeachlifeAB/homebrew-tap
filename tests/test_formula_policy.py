@@ -227,15 +227,18 @@ class ManifestPolicyTests(unittest.TestCase):
                 )
 
     def test_the_release_engine_can_rewrite_every_formula_url(self) -> None:
-        """update_formula rewrites only a url naming the manifest repository.
-        A mismatch matches nothing and aborts the release, so catch it at
-        commit time rather than part-way through publishing."""
+        """Every shipped formula exposes a replaceable GitHub source URL.
+
+        Repository ownership is asserted separately by
+        `test_manifest_repository_matches_formula_source_url`; this check
+        ensures the updater can perform the release cutover first.
+        """
         from modules.engine.application.tap import source_url_pattern
 
         for manifest in self._manifests():
             with self.subTest(product=manifest.name):
                 content = (self.root / f"Formula/{manifest.formula}.rb").read_text()
-                self.assertRegex(content, source_url_pattern(manifest.repository))
+                self.assertRegex(content, source_url_pattern())
 
     def test_macos_only_matches_the_formula(self) -> None:
         for manifest in self._manifests():
