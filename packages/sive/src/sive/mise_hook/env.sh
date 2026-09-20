@@ -13,4 +13,6 @@
 
 command -v sive >/dev/null 2>&1 || return 0
 
-eval "$(sive _mise-env --format=sh 2>/dev/null)"
+mise_env="$(sive _mise-env --format=sh 2>/dev/null)" || return 0
+eval "${mise_env}"
+unset mise_env
