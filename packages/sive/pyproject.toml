@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sive"
-version = "0.1.8"
+version = "0.1.9"
 description = "Sync environment variables and secrets from vaults into your shell"
 requires-python = ">=3.12"
 dependencies = [
