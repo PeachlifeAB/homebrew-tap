@@ -1,0 +1,11 @@
+schema_version = 1
+name = "lgtvctrl"
+repository = "PeachlifeAB/homebrew-tap"
+formula = "lgtvctrl"
+executable = "tv"
+package = "lgtvctrl"
+tag_prefix = "lgtvctrl-"
+asset_template = "lgtvctrl-{version}.tar.gz"
+quality_task = "test"
+smoke_args = ["--help"]
+macos_only = false
