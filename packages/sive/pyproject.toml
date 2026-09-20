@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sive"
+version = "0.1.8"
+description = "Sync environment variables and secrets from vaults into your shell"
+requires-python = ">=3.12"
+dependencies = [
+    "cryptography>=42.0,<51",
+]
+
+[project.scripts]
+sive = "sive.cli:main"
+
+# The mise hook is shipped data, not an importable module; setuptools omits it
+# unless it is named. uv_build included it by default, which is why dropping
+# hatchling's force-include looked safe.
+[tool.setuptools.package-data]
+sive = ["mise_hook/env.sh"]
+
+[tool.poe.tasks]
+# The release engine runs this with the package as its working directory.
+test = { sequence = [
+  { cmd = "ruff format --check ." },
+  { cmd = "ruff check ." },
+  { cmd = "pytest tests" },
+], help = "the package's release gate" }
