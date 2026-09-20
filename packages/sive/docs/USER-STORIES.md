@@ -221,7 +221,7 @@ tags = ["global", "project-x"]
 * profiles are Secure Notes stored in `env/profiles/<name>` in the personal vault
 * profile content is a list of typed source lines:
 
-```
+```text
 personal.folder:env/global
 personal.folder:env/ai
 personal.collection:env/team-acme
@@ -338,7 +338,7 @@ PORT=8080
 
 * `sive list` shows all currently loaded var names and their source, never values:
 
-```
+```text
 ANTHROPIC_API_KEY   personal.folder:env/ai
 GITHUB_TOKEN        personal.folder:env/global
 STRIPE_API_KEY      personal.collection:env/project-x

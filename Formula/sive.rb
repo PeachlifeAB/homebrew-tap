@@ -13,7 +13,6 @@ class Sive < Formula
     regex(/^sive-v?(\d+(?:\.\d+)+)$/i)
   end
 
-
   depends_on "bitwarden-cli"
   depends_on "cryptography"
   depends_on :macos

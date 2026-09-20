@@ -67,7 +67,7 @@ This will:
 ## Usage
 
 ```
-tv <command> [options]
+tv COMMAND [OPTIONS]
 ```
 
 ### Brightness
