@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
-import tomllib
+from ..domain.models import ProductManifest, ReleaseError
 
-from .models import ProductManifest, ReleaseError
+QUALITY_TASK = "test"
+VERSION_PLACEHOLDER = "{version}"
 
 _ALLOWED_KEYS = {
     "schema_version",
@@ -30,13 +32,8 @@ _MUTABLE_KEYS = {
 }
 
 
-def load_manifest(tap_root: Path, product: str) -> ProductManifest:
-    path = tap_root / "release-products" / f"{product}.toml"
-    if not path.is_file():
-        raise ReleaseError(f"unknown product manifest: {path}")
-
-    data = tomllib.loads(path.read_text(encoding="utf-8"))
-    keys = set(data)
+def _validate_keys(keys: set[str]) -> None:
+    """Reject mutable, unknown or missing manifest keys."""
     forbidden = keys & _MUTABLE_KEYS
     unknown = keys - _ALLOWED_KEYS
     missing = _REQUIRED_KEYS - keys
@@ -51,16 +48,29 @@ def load_manifest(tap_root: Path, product: str) -> ProductManifest:
     if missing:
         raise ReleaseError(f"manifest is missing keys: {', '.join(sorted(missing))}")
 
+
+def load_manifest(tap_root: Path, product: str) -> ProductManifest:
+    path = tap_root / "release-products" / f"{product}.toml"
+    if not path.is_file():
+        raise ReleaseError(f"unknown product manifest: {path}")
+
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    _validate_keys(set(data))
+
     if data["schema_version"] != 1:
         raise ReleaseError(f"unsupported manifest schema: {data['schema_version']}")
     if not isinstance(data["smoke_args"], list) or not all(
         isinstance(value, str) for value in data["smoke_args"]
     ):
         raise ReleaseError("manifest smoke_args must be a string array")
-    if data["quality_task"] != "test":
-        raise ReleaseError("manifest quality_task must name the owner task 'test'")
-    if "{version}" not in data["asset_template"]:
-        raise ReleaseError("manifest asset_template must contain {version}")
+    if data["quality_task"] != QUALITY_TASK:
+        raise ReleaseError(
+            f"manifest quality_task must name the owner task '{QUALITY_TASK}'"
+        )
+    if VERSION_PLACEHOLDER not in data["asset_template"]:
+        raise ReleaseError(
+            f"manifest asset_template must contain {VERSION_PLACEHOLDER}"
+        )
 
     return ProductManifest(
         schema_version=data["schema_version"],

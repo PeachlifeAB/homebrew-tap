@@ -17,6 +17,12 @@ for formula in sive bgtail lgtvctrl; do
     grep -E '^\s+(url|sha256|version)\s' "$REPO/Formula/$formula.rb"
 done
 
+echo "--- casks ---"
+for cask in hyprspace; do
+    echo "$cask.rb:"
+    grep -E '^\s+(version|sha256|url)\s' "$REPO/Casks/$cask.rb"
+done
+
 echo "--- release automation ---"
 for path in \
     bin/release \
@@ -33,9 +39,15 @@ python3 --version
 ruby --version
 
 echo "--- installed products ---"
-for product in sive bgtail; do
-    command -v "$product" 2>/dev/null || echo "$product: not on PATH"
-    "$(brew --prefix)/bin/$product" --version 2>/dev/null || echo "$product: not installed by Homebrew"
+# The manifests name what is releasable, and each names its own executable:
+# lgtvctrl installs `tv`. Listing either here as a literal is how lgtvctrl went
+# unreported.
+for manifest in "$REPO"/release-products/*.toml; do
+    product=$(basename "$manifest" .toml)
+    executable=$(sed -n 's/^executable = "\(.*\)"$/\1/p' "$manifest")
+    command -v "$executable" 2>/dev/null || echo "$product: not on PATH"
+    "$(brew --prefix)/bin/$executable" --version 2>/dev/null ||
+        echo "$product: not installed by Homebrew"
 done
 
 echo "--- tap path ---"

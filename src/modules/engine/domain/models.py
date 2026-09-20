@@ -4,11 +4,19 @@ import json
 import re
 from dataclasses import asdict, dataclass
 
-VERSION_PATTERN = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
+VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 
 
 class ReleaseError(RuntimeError):
     """Raised when observed release state violates a safety invariant."""
+
+
+class CommandFailed(ReleaseError):
+    """Raised by adapters when an external command exits non-zero.
+
+    Domain-level stand-in for subprocess.CalledProcessError so use cases can
+    handle command failure without importing subprocess.
+    """
 
 
 @dataclass(frozen=True)

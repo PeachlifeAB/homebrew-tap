@@ -1,0 +1,7 @@
+# actionlint's bundled runner-label list lags GitHub's rollout: it knows
+# macos-26 and macos-15-intel but not macos-26-intel, which is a real hosted
+# runner. Declaring it here keeps label validation active for every other
+# label instead of disabling the actionlint plugin.
+self-hosted-runner:
+  labels:
+    - macos-26-intel

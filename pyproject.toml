@@ -1,0 +1,253 @@
+[project]
+name = "homebrew-tap"
+version = "0.1.0"
+description = "Homebrew tap and release engine for the products it ships"
+readme = "README.md"
+authors = [{ name = "David Åberg", email = "git@davidaberg.me" }]
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.uv]
+# The root is a workspace container, not a distribution: Homebrew installs the
+# three products under packages/, and the release engine runs as bin/release,
+# by path. Without this, uv_build demands a module at src/homebrew_tap/ — the
+# only reason `uv init`'s placeholder had to exist.
+package = false
+
+# The test group gates every commit; without this, the default sync skips it
+# and `poe test` silently falls back to an ambient pytest outside the lock.
+default-groups = ["dev", "test"]
+
+# The three products are workspace members, so the suite runs against the same
+# code brew installs: pythonpath alone satisfies `import sive` but not
+# importlib.metadata or a `python -m sive` subprocess.
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+sive = { workspace = true }
+bgtail = { workspace = true }
+lgtvctrl = { workspace = true }
+
+[dependency-groups]
+test = [
+    "pytest~=9.0",
+    "mutmut~=3.3.0",
+    "jsonschema~=4.25",
+    "sive",
+    "bgtail",
+    "lgtvctrl",
+]
+dev = [
+  "mypy~=2.3.1",
+  "poethepoet~=0.48.0",
+  "pre-commit>=4.6.2",
+  "ruff~=0.16.4",
+  "types-jsonschema",
+  "types-PyYAML",
+  "vulture~=2.14",
+]
+
+[tool.ruff]
+line-length = 88
+# The oldest Python the workspace supports; every formula builds on python@3.13.
+target-version = "py312"
+
+[tool.ruff.lint]
+extend-select = [
+  "E501",
+  "E402",
+  "TID251",
+  "C901",
+  "PLR0915",
+  "PLR0912",
+  "PLR0913",
+  "PLR2004",
+  "S105",
+  "S108",
+  "F401",
+  "F841",
+  "ARG",
+  "I",
+  "B",
+  "UP",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["sive", "bgtail", "lgtvctrl"]
+
+[tool.ruff.lint.pylint]
+max-statements = 25
+max-branches = 8
+max-args = 5
+allow-magic-value-types = ["bytes"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 8
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"subprocess".msg = "I/O belongs in infrastructure/ or api/, never in domain/"
+"sys.stdin".msg = "stdin parsing belongs in api/, never in domain/"
+"argparse".msg = "CLI argument parsing belongs in api/, never in domain/"
+"urllib.request".msg = "Raw URI calls belong in infrastructure/ or api/"
+"urllib.error".msg = "Raw URI calls belong in infrastructure/ or api/"
+"requests".msg = "HTTP requests belong in infrastructure/ or api/"
+
+[tool.ruff.lint.per-file-ignores]
+# Every suite, the root's and each package's: a test names its expected
+# values literally, drives I/O directly, and takes stub arguments it ignores.
+"**/tests/**/*.py" = [
+  "TID251",
+  "PLR0915",
+  "PLR0912",
+  "PLR2004",
+  "ARG",
+  "S108",
+  # @patch decorators inject one argument each, so the count is pytest's.
+  "PLR0913",
+]
+"tools/*" = ["TID251", "PLR2004"]
+# Adapters ARE the I/O boundary: subprocess/urllib/requests belong here.
+"src/modules/*/infrastructure/*.py" = ["TID251"]
+# Inbound adapters own CLI parsing and process invocation.
+"src/modules/*/api/*.py" = ["TID251"]
+# bgtail is a CLI entry point that drives Terminal.app: argparse and
+# subprocess are its purpose, and the osascript it sends is source in
+# another language that reflowing to 88 columns would corrupt.
+"packages/bgtail/src/bgtail/cli.py" = ["TID251"]
+# The AppleScript clauses are single long strings; splitting them would break
+# the script. TID251 follows the subprocess calls that moved here from cli.py.
+"packages/bgtail/src/bgtail/terminal.py" = ["TID251", "E501"]
+# lgtvctrl's CLI entry point: argparse is what it is for.
+"packages/lgtvctrl/src/lgtvctrl/main.py" = ["TID251"]
+# lgtvctrl's outbound adapters. TID251 recognises an adapter only under
+# src/modules/*/infrastructure/; these packages predate that layout and
+# move behind it with the cross-platform ports.
+"packages/lgtvctrl/src/lgtvctrl/{auth,betterdisplay,macos_display}.py" = ["TID251"]
+# sive's CLI entry points: argparse, subprocess and stdin are their purpose.
+"packages/sive/src/sive/cli.py" = ["TID251"]
+# sive's outbound adapters -- the bw CLI, the macOS keychain, gum, and the
+# detached sync process. Same pre-hexagonal layout as lgtvctrl's.
+"packages/sive/src/sive/core/{bw,keychain_macos,sync_state,ui}.py" = ["TID251"]
+"packages/sive/src/sive/commands/setup.py" = ["TID251", "PLR0915"]
+# Linear report-and-continue flows: PLR0915 counts statements without
+# weighting branching, and both clear C901, the rule that measures it.
+"packages/sive/src/sive/commands/status.py" = ["PLR0915"]
+
+[tool.vulture]
+min_confidence = 80
+paths = ["src", "packages"]
+
+[tool.mypy]
+explicit_package_bases = true
+# Resolution only, never the checked set: `poe typecheck` runs `mypy src tests`,
+# so naming the packages here cannot add an error to the gate. It lets mypy
+# follow `import sive` and its siblings instead of reporting import-not-found.
+# The same four paths as pytest's pythonpath below, in the same order.
+mypy_path = "src:packages/sive/src:packages/lgtvctrl/src:packages/bgtail/src"
+strict = true
+# .gitignore means nothing to mypy, and it walks into build artefacts during
+# recursive discovery. A setuptools build/ holds a stale duplicate of every
+# module, so each finding there is one already reported against src/.
+exclude = "/build/"
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "packages/sive/src", "packages/lgtvctrl/src", "packages/bgtail/src"]
+# Every package's suite runs from the root, so a broken package fails the
+# workspace gate rather than passing unnoticed.
+testpaths = [
+  "tests",
+  "packages/bgtail/tests",
+  "packages/lgtvctrl/tests",
+  "packages/sive/tests",
+]
+# The root and each package have a tests/ directory, so module names collide
+# under the default prepend import mode. No ini key exists for this; it is
+# settable only as a command-line option.
+addopts = "--import-mode=importlib"
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = ["B101"]
+
+[tool.poe.tasks]
+deadcode = { cmd = "vulture", help = "scan for dead code" }
+quality = { cmd = "qlty check --all --no-fix --no-progress", help = "run qlty.sh check only" }
+quality-fix = { cmd = "qlty check --all --fix --no-progress", help = "run qlty.sh and auto-fix" }
+lint = { cmd = "ruff check src tests packages", help = "lint sources" }
+lint-fix = { cmd = "ruff check --fix src tests packages", help = "lint and auto-fix" }
+fmt = { cmd = "ruff format src tests packages", help = "format sources" }
+fmt-check = { cmd = "ruff format --check src tests packages", help = "verify formatting" }
+typecheck = { cmd = "mypy src tests", help = "typecheck" }
+test = { cmd = "pytest", help = "run tests" }
+mutate = { cmd = "mutmut run --max-children 1", help = "run mutation tests serially" }
+build = { cmd = "uv build --all-packages", help = "build all workspace packages" }
+
+# Composed workflows
+fix = { sequence = ["quality-fix", "fmt", "lint-fix"], help = "format and fix" }
+commit-check = { sequence = [
+  "quality",
+  "lint",
+  "fmt-check",
+], help = "fast syntax & format validation for pre-commit" }
+validate = { sequence = [
+  "quality",
+  "commit-check",
+  "deadcode",
+  "typecheck",
+  "test",
+], help = "run all gates before pushing to remote" }
+validate-all = { sequence = ["validate"], help = "alias for validate (pre-push gate)" }
+
+# Repository scripts are grouped here without duplicating their argument parsers.
+
+# The preflight library files and Sive's mise hook are sourced helpers, not
+# standalone tasks.
+[tool.poe.groups.builds]
+heading = "Build artifacts"
+
+[tool.poe.groups.builds.tasks.build-bgtail]
+cmd = "uv build --package bgtail"
+help = "Build bgtail's wheel and source distribution."
+
+[tool.poe.groups.builds.tasks.build-lgtvctrl]
+cmd = "uv build --package lgtvctrl"
+help = "Build lgtvctrl's wheel and source distribution."
+
+[tool.poe.groups.builds.tasks.build-sive]
+cmd = "uv build --package sive"
+help = "Build Sive's wheel and source distribution."
+
+
+[tool.poe.groups.release]
+heading = "Release lifecycle"
+
+[tool.poe.groups.release.tasks.release-run]
+cmd = "bin/release $POE_EXTRA_ARGS"
+help = "Run the release engine; pass its complete CLI as task arguments."
+
+[tool.poe.groups.release.tasks.release-preflight]
+cmd = "bin/preflight $POE_EXTRA_ARGS"
+help = "Run formula preflight; pass its arguments as task arguments."
+
+[tool.poe.groups.diagnostics]
+heading = "Repository diagnostics"
+
+[tool.poe.groups.diagnostics.tasks.diagnostics-tap]
+cmd = "bin/repo-state"
+help = "Report tap, formula, cask, toolchain, and install state."
+
+[tool.poe.groups.diagnostics.tasks.diagnostics-lgtvctrl]
+shell = "cd packages/lgtvctrl && bash scripts/repo-state.sh"
+help = "Report lgtvctrl repository, runtime, network, and process state."
+
+[tool.poe.groups.diagnostics.tasks.diagnostics-sive]
+shell = "cd packages/sive && bash bin/repo-state"
+help = "Report Sive repository, runtime, mise, vault, cache, and test state."
+
+[tool.poe.groups.integration]
+heading = "Integration checks"
+
+[tool.poe.groups.integration.tasks.integration-bgtail]
+cmd = "bash packages/bgtail/tests/integration-test.sh"
+help = "Run bgtail's installed-tool integration suite."

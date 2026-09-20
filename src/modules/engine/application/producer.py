@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import os
 import re
 import tarfile
 import tempfile
+import tomllib
 from pathlib import Path
 
-import tomllib
+from ..domain.models import Handoff, ProductManifest, ReleaseError, ReleaseObservation
+from .observation import lock_path, locked_version, observe_repository, project_version
+from .ports import ReleasePorts
 
-from .adapters import GitAdapter, GitHubAdapter, Sha256Hasher, SubprocessAdapter
-from .models import Handoff, ProductManifest, ReleaseError, ReleaseObservation
-from .observation import locked_version, observe_repository, project_version
+RELEASE_BRANCH = "main"
 
 _PROJECT_VERSION = re.compile(r'^version = "[^"]+"$', re.MULTILINE)
 
@@ -23,16 +25,14 @@ class ProducerRelease:
         self,
         manifest: ProductManifest,
         project_root: Path,
-        process: SubprocessAdapter,
-        git: GitAdapter,
-        github: GitHubAdapter,
+        ports: ReleasePorts,
     ) -> None:
         self.manifest = manifest
         self.project_root = project_root.resolve()
-        self.process = process
-        self.git = git
-        self.github = github
-        self.hasher = Sha256Hasher()
+        self.process = ports.process
+        self.git = ports.git
+        self.github = ports.github
+        self.hasher = ports.hasher
 
     def observe(self, version: str) -> ReleaseObservation:
         return observe_repository(
@@ -47,15 +47,18 @@ class ProducerRelease:
         self, observation: ReleaseObservation, version: str
     ) -> None:
         state = observation.repository
-        if state.branch != "main":
-            raise ReleaseError(f"release branch must be main, got {state.branch}")
+        if state.branch != RELEASE_BRANCH:
+            raise ReleaseError(
+                f"release branch must be {RELEASE_BRANCH}, got {state.branch}"
+            )
         if state.dirty:
             raise ReleaseError("producer worktree is dirty:\n" + "\n".join(state.dirty))
         if not state.tracking:
             raise ReleaseError("producer main has no tracking branch")
         if state.ahead or state.behind:
             raise ReleaseError(
-                f"producer differs from {state.tracking}: {state.ahead} ahead, {state.behind} behind"
+                f"producer differs from {state.tracking}: "
+                f"{state.ahead} ahead, {state.behind} behind"
             )
         if _version_tuple(version) <= _version_tuple(observation.declared_version):
             raise ReleaseError(
@@ -79,7 +82,7 @@ class ProducerRelease:
         if dry_run:
             print(f"[dry-run] update pyproject.toml version to {version}")
             print("[dry-run] uv lock")
-            print(f"[dry-run] task {self.manifest.quality_task}")
+            print(f"[dry-run] uv run poe {self.manifest.quality_task}")
             return
 
         path = self.project_root / "pyproject.toml"
@@ -91,16 +94,19 @@ class ProducerRelease:
             raise ReleaseError(f"expected one project version in {path}, got {count}")
         path.write_text(updated, encoding="utf-8")
         self.process.run(["uv", "lock"], cwd=self.project_root)
-        self.process.run(["task", self.manifest.quality_task], cwd=self.project_root)
+        self.process.run(
+            ["uv", "run", "poe", self.manifest.quality_task], cwd=self.project_root
+        )
         self.verify_prepared(version)
 
     def verify_prepared(self, version: str) -> None:
         self.manifest.validate_version(version)
-        declared = project_version(self.project_root)
+        declared = project_version(self.project_root, self.manifest.package)
         locked = locked_version(self.project_root, self.manifest.package)
         if declared != version or locked != version:
             raise ReleaseError(
-                f"prepared version mismatch: requested={version}, pyproject={declared}, lock={locked}"
+                f"prepared version mismatch: requested={version}, "
+                f"pyproject={declared}, lock={locked}"
             )
         development_output = self.process.run(
             ["uv", "run", self.manifest.executable, "--version"],
@@ -151,12 +157,14 @@ class ProducerRelease:
             print(f"[dry-run] git push origin main {tag}")
             return "<dry-run>"
 
-        self.git.run(["add", "pyproject.toml", "uv.lock"], cwd=self.project_root)
+        # The lock may live at the workspace root, not beside the package.
+        lock = os.path.relpath(lock_path(self.project_root), self.project_root)
+        self.git.run(["add", "pyproject.toml", lock], cwd=self.project_root)
         self.git.run(
             ["commit", "-m", f"release: prepare {version}"], cwd=self.project_root
         )
         commit = self.git.output(["rev-parse", "HEAD"], cwd=self.project_root)
-        if project_version(self.project_root) != version:
+        if project_version(self.project_root, self.manifest.package) != version:
             raise ReleaseError("release commit does not contain prepared version")
         self.git.run(
             ["tag", "-a", tag, "-m", f"Release {version}"], cwd=self.project_root
@@ -183,7 +191,11 @@ class ProducerRelease:
                 source_sha256="<dry-run>",
             )
 
-        self.process.run(["uv", "build", "--sdist"], cwd=self.project_root)
+        # uv builds at the workspace root; the release asset is the package's.
+        self.process.run(
+            ["uv", "build", "--sdist", "--out-dir", str(self.project_root / "dist")],
+            cwd=self.project_root,
+        )
         asset = self.project_root / "dist" / self.manifest.asset_name(version)
         if not asset.is_file():
             raise ReleaseError(f"expected sdist not produced: {asset}")

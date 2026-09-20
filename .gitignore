@@ -1,11 +1,33 @@
-# Local-only development files (not for public repo)
-AGENTS.md
-CLAUDE.md
+# Local-only development notes, deliberately untracked (695cb86).
 JOURNAL.md
-journal.md
 docs/DEVELOPMENT.md
+docs/INVENTORY.md
+docs/TAP-CONVENTIONS.md
+
+# Tool state and reference clones.
 .codegraph/
+.mcp.json
+/.gdog
+log/
+
+# Python build artefacts. The three packages arrived with their own .gitignore
+# covering these; the root owns them now, as it owns every other shared rule.
 __pycache__/
 *.pyc
-steps_output.txt
-log/
+*.egg-info/
+.venv/
+build/
+dist/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
+*.gate.lock*
+/.beads
+/.cursor
+/.dog

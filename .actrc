@@ -1,0 +1,9 @@
+# Defaults for `act` (https://github.com/nektos/act), which runs the GitHub
+# Actions workflows locally in Docker. Without these, act on Apple Silicon
+# warns and can fail on actions that ship amd64-only binaries.
+--container-architecture linux/amd64
+
+# act-latest ships Ruby, Python and the common build tooling that brew style
+# and qlty need. The default `micro` image lacks too much; `large` is ~17GB
+# and buys nothing here.
+-P ubuntu-latest=catthehacker/ubuntu:act-latest

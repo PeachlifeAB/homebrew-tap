@@ -3,15 +3,42 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import subprocess
-import time
 from pathlib import Path
 
-from .adapters import GitAdapter, GitHubAdapter, SubprocessAdapter
-from .models import Handoff, ProductManifest, ReleaseError
+from ..domain.models import Handoff, ProductManifest, ReleaseError
+from .ports import GitHubPort, GitPort, ProcessPort
 
-_TOP_LEVEL_SHA = re.compile(r'^  sha256 "[0-9a-f]{64}"$', re.MULTILINE)
-_BOTTLE_BLOCK = re.compile(r"\n  bottle do\n.*?\n  end\n", re.DOTALL)
+CHECK_DISCOVERY_ATTEMPTS = 60
+PUBLISH_RUN_DISCOVERY_ATTEMPTS = 30
+
+_TOP_LEVEL_SHA = re.compile(r'^ {2}sha256 "[0-9a-f]{64}"$', re.MULTILINE)
+_BOTTLE_BLOCK = re.compile(r"\n {2}bottle do\n.*?\n {2}end\n", re.DOTALL)
+
+
+def version_assertion_pattern(executable: str) -> re.Pattern[str]:
+    """The formula test's version assertion, which must derive from `version`.
+
+    What matters is that the expected string is interpolated from `version`
+    rather than written as a literal: a hardcoded one silently passes against
+    the previous release after a bump. The spelling is not what matters, and
+    pinning one is how this check broke — it required `assert_match
+    version.to_s` while every formula had moved to `assert_equal`, which is
+    the stronger assertion, so each release aborted on a correct formula.
+    """
+    return re.compile(
+        rf'assert_\w+.*\bversion\b.*shell_output\(\s*"#\{{bin\}}/{re.escape(executable)}'
+        r' --version"',
+    )
+
+
+def source_url_pattern(repository: str) -> re.Pattern[str]:
+    """The `url` stanza update_formula rewrites. It is anchored to the
+    repository the manifest names, so a formula pointing elsewhere matches
+    nothing and aborts the release instead of being rewritten."""
+    return re.compile(
+        rf'^ {{2}}url "https://github\.com/{re.escape(repository)}/[^"]+"$',
+        re.MULTILINE,
+    )
 
 
 class TapRelease:
@@ -19,9 +46,9 @@ class TapRelease:
         self,
         tap_root: Path,
         manifest: ProductManifest,
-        process: SubprocessAdapter,
-        git: GitAdapter,
-        github: GitHubAdapter,
+        process: ProcessPort,
+        git: GitPort,
+        github: GitHubPort,
     ) -> None:
         self.tap_root = tap_root.resolve()
         self.manifest = manifest
@@ -59,7 +86,8 @@ class TapRelease:
         live_commit = self.github.tag_commit(handoff.repository, handoff.tag)
         if live_commit != handoff.commit:
             raise ReleaseError(
-                f"live tag commit {live_commit or '<missing>'} != handoff {handoff.commit}"
+                f"live tag commit {live_commit or '<missing>'} "
+                f"!= handoff {handoff.commit}"
             )
         content = self.process.read_bytes(
             [
@@ -81,11 +109,7 @@ class TapRelease:
     def update_formula(self, handoff: Handoff) -> None:
         self.validate_handoff(handoff)
         content = self.formula_path.read_text(encoding="utf-8")
-        url_pattern = re.compile(
-            rf'^  url "https://github\.com/{re.escape(self.manifest.repository)}/[^\"]+"$',
-            re.MULTILINE,
-        )
-        content, url_count = url_pattern.subn(
+        content, url_count = source_url_pattern(self.manifest.repository).subn(
             f'  url "{handoff.source_url}"', content, count=1
         )
         content, sha_count = _TOP_LEVEL_SHA.subn(
@@ -94,10 +118,10 @@ class TapRelease:
         content = _BOTTLE_BLOCK.sub("\n", content, count=1)
         if url_count != 1 or sha_count != 1:
             raise ReleaseError(
-                f"formula update expected one URL/SHA, got url={url_count}, sha={sha_count}"
+                f"formula update expected one URL/SHA, "
+                f"got url={url_count}, sha={sha_count}"
             )
-        expected_test = f'assert_match version.to_s, shell_output("#{{bin}}/{self.manifest.executable} --version")'
-        if expected_test not in content:
+        if not version_assertion_pattern(self.manifest.executable).search(content):
             raise ReleaseError(
                 f"formula test is not version-derived: {self.formula_path}"
             )
@@ -142,7 +166,10 @@ class TapRelease:
                 "--title",
                 title,
                 "--body",
-                f"Automated Homebrew release for {self.manifest.name} {handoff.version}.",
+                (
+                    f"Automated Homebrew release for {self.manifest.name} "
+                    f"{handoff.version}."
+                ),
             ],
             cwd=self.tap_root,
         )
@@ -244,54 +271,58 @@ class TapRelease:
         )
 
     def _wait_for_checks(self, pull_request: int) -> None:
-        command = [
-            "gh",
-            "pr",
-            "checks",
-            str(pull_request),
-            "--repo",
-            self.tap_repository,
-            "--json",
-            "name,state",
-        ]
-        for _ in range(60):
-            result = subprocess.run(
-                command,
-                cwd=self.tap_root,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode == 0 and json.loads(result.stdout):
-                return
-            time.sleep(2)
-        raise ReleaseError("pull-request checks did not appear")
-
-    def _latest_publish_run(self) -> str:
-        raw = self.process.run(
+        """Wait for the check suite to REGISTER; `gh pr checks --watch` then
+        waits for it to pass. Only `name` is read, so only `name` is asked for.
+        """
+        self.process.poll_until(
             [
                 "gh",
-                "run",
-                "list",
+                "pr",
+                "checks",
+                str(pull_request),
                 "--repo",
                 self.tap_repository,
-                "--workflow",
-                "publish.yml",
-                "--limit",
-                "1",
                 "--json",
-                "databaseId",
+                "name",
             ],
             cwd=self.tap_root,
-            capture=True,
+            ready=lambda code, out: code == 0 and bool(json.loads(out or "[]")),
+            attempts=CHECK_DISCOVERY_ATTEMPTS,
         )
-        rows = json.loads(raw)
+
+    def _publish_run_query(self) -> list[str]:
+        return [
+            "gh",
+            "run",
+            "list",
+            "--repo",
+            self.tap_repository,
+            "--workflow",
+            "publish.yml",
+            "--limit",
+            "1",
+            "--json",
+            "databaseId",
+        ]
+
+    @staticmethod
+    def _run_id(raw: str) -> str:
+        rows = json.loads(raw or "[]")
         return str(rows[0]["databaseId"]) if rows else ""
 
+    def _latest_publish_run(self) -> str:
+        return self._run_id(
+            self.process.run(self._publish_run_query(), cwd=self.tap_root, capture=True)
+        )
+
     def _wait_for_new_publish_run(self, previous: str) -> str:
-        for _ in range(30):
-            current = self._latest_publish_run()
-            if current and current != previous:
-                return current
-            time.sleep(2)
-        raise ReleaseError("publish workflow run did not appear")
+        """Wait for the dispatched run to appear so it has an id to watch."""
+        self.process.poll_until(
+            self._publish_run_query(),
+            cwd=self.tap_root,
+            ready=lambda code, out: (
+                code == 0 and self._run_id(out) not in ("", previous)
+            ),
+            attempts=PUBLISH_RUN_DISCOVERY_ATTEMPTS,
+        )
+        return self._latest_publish_run()

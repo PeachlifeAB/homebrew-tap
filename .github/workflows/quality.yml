@@ -1,0 +1,71 @@
+name: quality
+
+# Analyser checks that do not need macOS, kept off the matrix in tests.yml so
+# they can be run locally with `act` before pushing. See docs/DEVELOPMENT.md.
+#
+# Formula style and formula install are NOT here: `brew test-bot
+# --only-tap-syntax` and `--only-formulae` in tests.yml already own them, on
+# the macOS runners where every formula in this tap can actually install.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash -xeuo pipefail {0}
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the tap
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          # This job only reads the tree; it never pushes.
+          persist-credentials: false
+
+      # The installer exits non-zero even on success, which `pipefail` would
+      # otherwise treat as a failed step; the binary it reports is checked
+      # instead.
+      - name: Install qlty
+        run: |
+          curl -fsSL https://qlty.sh | bash || true
+          test -x "$HOME/.qlty/bin/qlty"
+
+      - name: Run analysers
+        run: |
+          export PATH="$HOME/.qlty/bin:$PATH"
+          qlty check --all --no-fix --no-progress
+
+  # Every package whose manifest says macos_only = false must actually pass its
+  # own suite on Linux. Without this, dropping `depends_on :macos` rests on a
+  # developer having run the tests on a Linux machine once.
+  linux-packages:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the tap
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+
+      - name: Test every cross-platform package
+        run: |
+          for manifest in release-products/*.toml; do
+            grep -q '^macos_only = false$' "$manifest" || continue
+            package=$(sed -n 's/^package = "\(.*\)"$/\1/p' "$manifest")
+            echo "::group::$package"
+            uv run --group test pytest "packages/$package/tests" -q
+            echo "::endgroup::"
+          done

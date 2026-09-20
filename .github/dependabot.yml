@@ -1,10 +1,36 @@
+---
 version: 2
 updates:
+  # Grouped so a toolchain bump arrives as one reviewable pull request rather
+  # than one per dependency. `cooldown` holds back releases for a week so we do
+  # not chase a version that gets yanked.
   - package-ecosystem: github-actions
-    directory: "/"
+    directories:
+      - "/"
     schedule:
       interval: weekly
     groups:
       github-actions:
         patterns:
           - "*"
+    cooldown:
+      default-days: 7
+
+  # "/" covers the workspace lockfile; "/packages/*" covers each member's own
+  # manifest. Whether the workspace root alone is sufficient is not documented,
+  # so both are listed — a redundant entry is harmless, a missed package is not.
+  # The glob means a new package under packages/ is covered without editing
+  # this file. `directories` supports globbing; `directory` does not.
+  - package-ecosystem: uv
+    directories:
+      - "/"
+      - "/packages/*"
+    schedule:
+      interval: weekly
+    groups:
+      dev-dependencies:
+        dependency-type: development
+      runtime-dependencies:
+        dependency-type: production
+    cooldown:
+      default-days: 7
