@@ -3,19 +3,14 @@ class Lgtvctrl < Formula
 
   desc "Command-line control for LG WebOS TVs"
   homepage "https://github.com/PeachlifeAB/lgtvctrl"
-  url "https://github.com/PeachlifeAB/lgtvctrl/archive/refs/tags/0.1.0.tar.gz"
-  sha256 "4cf44bbda27c8828c6dc68e54ccb9dfc6852cdbad04fd943ef8d5efbdab16d72"
+  url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/lgtvctrl-0.1.1/lgtvctrl-0.1.1.tar.gz"
+  sha256 "7de711acacd2c5e7f39d4065e146e7832414336045bf16323949c3a84ab73b2b"
   license "MIT"
 
   livecheck do
     url :stable
     strategy :github_releases
     regex(/^lgtvctrl-v?(\d+(?:\.\d+)+)$/i)
-  end
-
-  bottle do
-    root_url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/lgtvctrl-0.1.0"
-    sha256 cellar: :any_skip_relocation, arm64_tahoe: "e7669fd8c1e14ff14f4e8c32eb6c9ac25ad25b61d69a6647f441886966dff6ab"
   end
 
   depends_on "openssl@3"
