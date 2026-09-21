@@ -259,7 +259,7 @@ class TapRelease:
         output = self.process.run(
             [str(executable), "--version"], cwd=self.tap_root, capture=True
         )
-        expected = f"{self.manifest.name} {version}"
+        expected = f"{self.manifest.executable} {version}"
         if output != expected:
             raise ReleaseError(
                 f"Homebrew version mismatch: expected {expected!r}, got {output!r}"

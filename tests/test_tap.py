@@ -123,6 +123,29 @@ class TapFormulaTests(unittest.TestCase):
         self.assertNotIn("bottle do", content)
         self.assertIn(f'  sha256 "{handoff.source_sha256}"\n\n  test do\n', content)
 
+    def test_post_verify_uses_executable_as_version_label(self) -> None:
+        class VersionProcess(FakeProcess):
+            def run(
+                self,
+                args: list[str],
+                *,
+                cwd: Path,
+                capture: bool = False,
+                timeout_seconds: float | None = None,
+            ) -> str:
+                if args == ["brew", "--prefix"]:
+                    return "/tmp"
+                if capture:
+                    return "tv 0.1.1"
+                return ""
+
+        root = Path(__file__).resolve().parents[1]
+        manifest = load_manifest(root, "lgtvctrl")
+        release = TapRelease(
+            root, manifest, VersionProcess(b""), FakeGit(), FakeGitHub("a" * 40)
+        )
+        release.post_verify("0.1.1", root)
+
     def test_version_assertion_pattern_rejects_only_hardcoded_versions(
         self,
     ) -> None:

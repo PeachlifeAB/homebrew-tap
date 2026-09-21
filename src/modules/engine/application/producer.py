@@ -113,7 +113,7 @@ class ProducerRelease:
             cwd=self.project_root,
             capture=True,
         )
-        expected = f"{self.manifest.name} {version}"
+        expected = f"{self.manifest.executable} {version}"
         if not development_output.startswith(expected):
             raise ReleaseError(
                 f"development CLI version mismatch: expected prefix {expected!r}, "

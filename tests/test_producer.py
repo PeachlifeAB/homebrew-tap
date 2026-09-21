@@ -21,7 +21,8 @@ from modules.engine.infrastructure.manifest import load_manifest
 
 
 class FakeProcess:
-    def __init__(self) -> None:
+    def __init__(self, version_output: str = "sive 0.1.8") -> None:
+        self.version_output = version_output
         self.commands: list[list[str]] = []
 
     def run(
@@ -33,7 +34,7 @@ class FakeProcess:
         timeout_seconds: float | None = None,
     ) -> str:
         self.commands.append(args)
-        return "sive 0.1.8" if capture else ""
+        return self.version_output if capture else ""
 
     def try_run(self, args: list[str], *, cwd: Path) -> tuple[int, str]:
         self.commands.append(args)
@@ -119,6 +120,26 @@ class ProducerTests(unittest.TestCase):
 
             self.assertEqual(process.commands, [])
             self.assertFalse((root / "pyproject.toml").exists())
+
+    def test_verify_uses_executable_as_version_label(self) -> None:
+        manifest = load_manifest(self.tap_root, "lgtvctrl")
+        process = FakeProcess("tv 0.1.1")
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            (workspace / "uv.lock").write_text(
+                '[[package]]\nname = "lgtvctrl"\nversion = "0.1.1"\n'
+            )
+            package = workspace / "packages" / "lgtvctrl"
+            package.mkdir(parents=True)
+            (package / "pyproject.toml").write_text(
+                '[project]\nname = "lgtvctrl"\nversion = "0.1.1"\n'
+            )
+            release = ProducerRelease(
+                manifest,
+                package,
+                ReleasePorts(process, FakeGit(), FakeGitHub(), FakeHasher()),
+            )
+            release.verify_prepared("0.1.1")
 
     def test_commit_precedes_tag_and_joint_push(self) -> None:
         process = FakeProcess()
