@@ -13,6 +13,11 @@ class Bgtail < Formula
     regex(/^bgtail-v?(\d+(?:\.\d+)+)$/i)
   end
 
+  bottle do
+    root_url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/bgtail-0.1.2"
+    sha256 cellar: :any_skip_relocation, arm64_tahoe: "8ac45e0ecaf69a52b7e803e0e8efc34cc0111817b5485b216edb96527e1c69c2"
+  end
+
   depends_on "python@3.13"
 
   # Build backend. Homebrew's python vendors only pip, and the build sandbox has
