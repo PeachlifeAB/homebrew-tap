@@ -13,7 +13,6 @@ class Bgtail < Formula
     regex(/^bgtail-v?(\d+(?:\.\d+)+)$/i)
   end
 
-
   depends_on "python@3.13"
 
   # Build backend. Homebrew's python vendors only pip, and the build sandbox has

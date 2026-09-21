@@ -118,7 +118,7 @@ class TapRelease:
         content, sha_count = _TOP_LEVEL_SHA.subn(
             f'  sha256 "{handoff.source_sha256}"', content, count=1
         )
-        content = _BOTTLE_BLOCK.sub("\n", content, count=1)
+        content = _BOTTLE_BLOCK.sub("", content, count=1)
         if url_count != 1 or sha_count != 1:
             raise ReleaseError(
                 f"formula update expected one URL/SHA, "

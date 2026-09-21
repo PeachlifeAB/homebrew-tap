@@ -121,6 +121,7 @@ class TapFormulaTests(unittest.TestCase):
         self.assertIn(handoff.source_url, content)
         self.assertIn(handoff.source_sha256, content)
         self.assertNotIn("bottle do", content)
+        self.assertIn(f'  sha256 "{handoff.source_sha256}"\n\n  test do\n', content)
 
     def test_version_assertion_pattern_rejects_only_hardcoded_versions(
         self,
