@@ -3,8 +3,8 @@ class Bgtail < Formula
 
   desc "Run long-running commands detached with minimal heartbeat"
   homepage "https://github.com/PeachlifeAB/bgtail"
-  url "https://github.com/PeachlifeAB/bgtail/archive/refs/tags/0.1.1.tar.gz"
-  sha256 "04e923bd2a1122d3d4e702dba826093006576e8c80f88937bd13958c194b2670"
+  url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/bgtail-0.1.2/bgtail-0.1.2.tar.gz"
+  sha256 "6bff80753ebd5c6454af4b79aa665bd27c9873bf2601011aa392a35d9345295d"
   license "MIT"
 
   livecheck do
@@ -13,10 +13,6 @@ class Bgtail < Formula
     regex(/^bgtail-v?(\d+(?:\.\d+)+)$/i)
   end
 
-  bottle do
-    root_url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/bgtail-0.1.1"
-    sha256 cellar: :any_skip_relocation, arm64_tahoe: "33b64c9a2d4a55859d72c00c31660201f0159faca845c42e8ebbe5a779046077"
-  end
 
   depends_on "python@3.13"
 
