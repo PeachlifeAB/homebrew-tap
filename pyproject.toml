@@ -32,7 +32,7 @@ lgtvctrl = { workspace = true }
 [dependency-groups]
 test = [
     "pytest~=9.0",
-    "mutmut~=3.3.0",
+    "mutmut>=3.3,<3.9",
     "jsonschema~=4.25",
     "sive",
     "bgtail",
