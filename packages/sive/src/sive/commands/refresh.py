@@ -7,7 +7,7 @@ import time
 
 from ..core import ui
 from ..core.bw import sync
-from ..core.keychain_macos import KeychainError
+from ..core.credentials import CredentialError as KeychainError
 from ..core.project_config import active_tags
 from ..core.snapshot import write_snapshot
 from ..core.snapshot_crypto import ensure_key

@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from .bw import sync, unlock
-from .keychain_macos import get_password
+from .credentials import get_password
 from .pending_queue import drain_pending
 from .vaults import load_vault
 

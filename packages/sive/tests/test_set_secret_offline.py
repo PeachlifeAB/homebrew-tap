@@ -74,6 +74,7 @@ def test_set_patches_snapshot_when_vault_unreachable(
         patch("sive.commands.set_secret.read_project_vault", return_value="personal"),
         patch("sive.commands.set_secret.read_project_tags", return_value=["global"]),
         patch("sive.core.pending_queue.STATE_DIR", state_dir),
+        patch("sive.commands.set_secret.ensure_key"),
         patch("sive.core.snapshot_crypto.get_key", return_value=key),
         patch("sive.core.snapshot.get_key", return_value=key),
     ):

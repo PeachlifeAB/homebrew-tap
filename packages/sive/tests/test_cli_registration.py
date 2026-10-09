@@ -6,6 +6,8 @@ per-group helpers, so these assert what each one still accepts.
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from sive import cli
@@ -54,3 +56,23 @@ def test_subcommand_options(argv, expected):
     assert ns.command == argv[0]
     for key, value in expected.items():
         assert getattr(ns, key) == value, key
+
+
+@pytest.mark.parametrize(
+    ("argv", "guarded"),
+    [(["refresh"], True), (["status"], True), (["_mise-env"], False)],
+)
+def test_interactive_commands_offer_the_keychain_unlock_first(
+    monkeypatch, argv, guarded
+):
+    """The shell hook must never prompt; user-facing commands self-heal."""
+    command = argv[0]
+    monkeypatch.setattr("sys.argv", ["sive", *argv])
+    monkeypatch.setitem(cli._COMMANDS, command, lambda _args: 0)
+    with (
+        patch("sive.core.credentials.ensure_unlocked") as ensure,
+        pytest.raises(SystemExit),
+    ):
+        cli.main()
+
+    assert ensure.called is guarded

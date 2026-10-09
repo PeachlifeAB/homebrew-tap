@@ -24,6 +24,13 @@ bin/{release,repo-state,preflight}
   `application` → `domain`. `src/app/composition.py` is the only place
   constructing adapters. Enforced by ruff `TID251`.
 
+## Runtimes
+
+Python comes from `.python-version`, which uv reads for `uv run` and `uv sync`
+locally and `setup-uv` reads in CI; change the version there only. Run tools
+through `uv run`; machine-wide runtimes and CLIs belong to mise, not to this
+repo.
+
 ## Quality gates
 
 `uv run poe validate` — must fail when any package fails.

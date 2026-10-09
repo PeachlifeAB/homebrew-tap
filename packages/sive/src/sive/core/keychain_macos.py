@@ -6,6 +6,8 @@ import base64
 import subprocess
 from pathlib import Path
 
+from .credentials import EMAIL_ACCOUNT, MASTER_PASSWORD_ACCOUNT, CredentialError
+
 SERVICE_PREFIX = "sive"
 _VALUE_PREFIX = "sive1:"
 
@@ -14,18 +16,18 @@ _VALUE_PREFIX = "sive1:"
 KEYCHAIN_TIMEOUT_SECONDS = 5
 
 
-class KeychainError(Exception):
+class KeychainError(CredentialError):
     pass
+
+
+def _login_keychain() -> Path:
+    # Named on every item call: a headless SSH session's search list holds only
+    # System.keychain, so an unnamed lookup never reaches the user's items.
+    return Path.home() / "Library" / "Keychains" / "login.keychain-db"
 
 
 def _service(vault_name: str) -> str:
     return f"{SERVICE_PREFIX}/{vault_name}"
-
-
-# Keychain account labels, not credentials: the value stored under
-# MASTER_PASSWORD_ACCOUNT is the password, this names the slot.
-MASTER_PASSWORD_ACCOUNT = "master_password"  # noqa: S105
-EMAIL_ACCOUNT = "email"
 
 
 def _friendly_account(account: str) -> str:
@@ -54,6 +56,9 @@ GENERIC_SECKEYCHAIN_ERROR = "what a shameful experience"
 # variants the tool uses across releases.
 LOCKED_KEYCHAIN_MARKERS = ("userinteractionisnotallowed", "interactionnotallowed")
 UNOPENABLE_KEYCHAIN_MARKER = "could not be opened"
+# errSecInteractionNotAllowed: `find-generic-password` exits with it on a
+# locked keychain and prints nothing to stderr.
+LOCKED_KEYCHAIN_EXIT = 36
 
 
 def _sanitize_security_error(stderr: str) -> str:
@@ -104,6 +109,7 @@ def _add_generic_password(
             account,
             "-w",
             encoded_value,
+            str(_login_keychain()),
         ],
         capture_output=True,
         text=True,
@@ -118,31 +124,80 @@ def _is_locked_keychain_error(stderr: str) -> bool:
     )
 
 
-def _unlock_login_keychain() -> bool:
-    """Offer to unlock the login keychain and do so when the user consents.
+def _is_locked(result: subprocess.CompletedProcess) -> bool:
+    return result.returncode == LOCKED_KEYCHAIN_EXIT or (
+        result.returncode != 0 and _is_locked_keychain_error(result.stderr or "")
+    )
 
-    Returns True only when the keychain is unlocked afterward. ``security
-    unlock-keychain`` inherits the tty so macOS prompts for the keychain password on
-    stdin — works in a local terminal and over SSH when a tty is present.
+
+def _raw(result: subprocess.CompletedProcess) -> str:
+    output = (result.stderr or "").strip() or "(no output)"
+    return f"`{' '.join(result.args)}` exited {result.returncode}: {output}"
+
+
+def _unlock_failed_error(
+    keychain: Path,
+    probe: subprocess.CompletedProcess,
+    unlock: subprocess.CompletedProcess,
+) -> KeychainError:
+    return KeychainError(
+        "Could not unlock the login keychain, so sive cannot read its credentials.\n"
+        "\n"
+        f"Keychain check: {_raw(probe)}\n"
+        f"Unlock attempt: {_raw(unlock)}\n"
+        "\n"
+        "To fix it yourself:\n"
+        "  1. Unlock with your macOS login password:\n"
+        f"     security unlock-keychain {keychain}\n"
+        "  2. If you changed your login password, try the previous one;\n"
+        f"     once unlocked, align them: security set-keychain-password {keychain}\n"
+        "  3. Then run: sive refresh"
+    )
+
+
+def ensure_unlocked() -> bool:
+    """Offer to unlock a locked login keychain; True once it is unlocked.
+
+    Prompts only on a terminal, so the shell hook and background sync never
+    block. An accepted unlock that fails raises with both raw errors.
     """
     from . import ui  # lazy import: ui imports no core modules, so no load-time cycle
 
-    keychain = Path.home() / "Library" / "Keychains" / "login.keychain-db"
+    keychain = _login_keychain()
     if not keychain.exists():
         return False
+    probe = subprocess.run(
+        ["security", "show-keychain-info", str(keychain)],
+        capture_output=True,
+        text=True,
+        check=False,
+        stdin=subprocess.DEVNULL,
+        timeout=KEYCHAIN_TIMEOUT_SECONDS,
+    )
+    if probe.returncode == 0:
+        return True
+    if not _is_locked(probe) or not ui.can_prompt():
+        return False
     if not ui.confirm(
-        "macOS Keychain is locked, so sive cannot store credentials. "
-        "Unlock the login keychain now?",
+        "The login keychain is locked, so sive cannot read its credentials. "
+        "Unlock it now?",
         default=True,
     ):
+        ui.eprint(
+            f"sive: keychain left locked. Unlock with:\n"
+            f"  security unlock-keychain {keychain}"
+        )
         return False
-    return (
-        subprocess.run(
-            ["security", "unlock-keychain", str(keychain)],
-            check=False,
-        ).returncode
-        == 0
+    # The passphrase prompt reads /dev/tty itself, so stderr can be captured.
+    unlock = subprocess.run(
+        ["security", "unlock-keychain", str(keychain)],
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
     )
+    if unlock.returncode == 0:
+        return True
+    raise _unlock_failed_error(keychain, probe, unlock)
 
 
 def store_secret(vault_name: str, account: str, value: str) -> None:
@@ -159,7 +214,7 @@ def store_secret(vault_name: str, account: str, value: str) -> None:
     if (
         result.returncode != 0
         and _is_locked_keychain_error(result.stderr)
-        and _unlock_login_keychain()
+        and ensure_unlocked()
     ):
         result = _add_generic_password(service, account, encoded_value)
     if result.returncode != 0:
@@ -171,7 +226,16 @@ def get_secret(vault_name: str, account: str, *, missing_hint: str = "") -> str:
     service = _service(vault_name)
     try:
         result = subprocess.run(
-            ["security", "find-generic-password", "-s", service, "-a", account, "-w"],
+            [
+                "security",
+                "find-generic-password",
+                "-s",
+                service,
+                "-a",
+                account,
+                "-w",
+                str(_login_keychain()),
+            ],
             capture_output=True,
             text=True,
             check=False,
@@ -186,6 +250,12 @@ def get_secret(vault_name: str, account: str, *, missing_hint: str = "") -> str:
             f"Keychain lookup for '{account}' in vault '{vault_name}' timed out "
             f"after {KEYCHAIN_TIMEOUT_SECONDS}s. Unlock the login keychain."
         ) from e
+    if _is_locked(result):
+        raise KeychainError(
+            f"macOS Keychain is locked; cannot read '{account}' for vault "
+            f"'{vault_name}'.\nRun 'sive refresh' to unlock it and sync.\n"
+            f"Keychain said: {_raw(result)}"
+        )
     if result.returncode != 0:
         hint = missing_hint or "Run 'sive setup' to store it."
         raise KeychainError(
@@ -198,7 +268,15 @@ def delete_secret(vault_name: str, account: str) -> None:
     """Remove a secret from Keychain (best-effort)."""
     service = _service(vault_name)
     subprocess.run(
-        ["security", "delete-generic-password", "-s", service, "-a", account],
+        [
+            "security",
+            "delete-generic-password",
+            "-s",
+            service,
+            "-a",
+            account,
+            str(_login_keychain()),
+        ],
         capture_output=True,
         check=False,
     )
@@ -235,3 +313,17 @@ def get_email(vault_name: str) -> str | None:
         return get_secret(vault_name, _EMAIL_ACCOUNT)
     except KeychainError:
         return None
+
+
+class MacOSKeychainStore:
+    """Adapt the bounded macOS `security` CLI to the credential port."""
+
+    ensure_unlocked = staticmethod(ensure_unlocked)
+    store_secret = staticmethod(store_secret)
+    get_secret = staticmethod(get_secret)
+    delete_secret = staticmethod(delete_secret)
+    store_password = staticmethod(store_password)
+    get_password = staticmethod(get_password)
+    delete_password = staticmethod(delete_password)
+    store_email = staticmethod(store_email)
+    get_email = staticmethod(get_email)

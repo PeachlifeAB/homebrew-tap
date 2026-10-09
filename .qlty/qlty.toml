@@ -228,12 +228,10 @@ set.ignored = true
 # hostile payload it asserts is refused. Removing the import would remove the
 # test.
 #
-# B105 (keychain_macos.py): "master_password" is the Keychain account name -
-# the lookup key - not a credential; the secret is the password parameter.
-# bandit matches the string value, not the variable name, so renaming does not
-# clear it (tried). Changing the value would orphan every stored credential and
-# silently lock users out, which is a real migration to satisfy a word-list
-# match. No correct code change clears this one.
+# B105 (credentials.py): "master_password" names the credential slot in the
+# macOS Keychain and the Linux Secret Service; the secret is the password
+# parameter. The value is a persistent key, so changing it would orphan every
+# stored credential and make the macOS and Linux entries incompatible.
 [[triage]]
 match.rules = ["bandit:B310"]
 match.file_patterns = ["packages/lgtvctrl/src/lgtvctrl/auth.py"]
@@ -246,7 +244,7 @@ set.ignored = true
 
 [[triage]]
 match.rules = ["bandit:B105"]
-match.file_patterns = ["packages/sive/src/sive/core/keychain_macos.py"]
+match.file_patterns = ["packages/sive/src/sive/core/credentials.py"]
 set.ignored = true
 
 # Two findings where the analyser is right about the pattern and wrong about

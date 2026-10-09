@@ -7,13 +7,13 @@ If a tag snapshot is missing or unreadable, warns once to stderr and skips it.
 from __future__ import annotations
 
 import json
-import os
 import shlex
 import sys
 
 from ..core import ui
 from ..core.project_config import active_tags
 from ..core.snapshot import read_snapshot, snapshot_exists
+from ..core.sync_state import maybe_trigger_background_sync
 
 # The hook sources this output; JSON stays the default for every other caller.
 SHELL_FORMAT = "sh"
@@ -37,6 +37,9 @@ def run(tags: list[str], output_format: str = "json") -> int:
             tags = active_tags()
 
         vault_name = "personal"
+        # Detached and throttled: the vault refresh lands in the snapshot a
+        # later shell reads, so this prompt never waits on the network.
+        maybe_trigger_background_sync(vault_name)
         env: dict[str, str] = {}
 
         for tag in tags:
@@ -57,10 +60,7 @@ def run(tags: list[str], output_format: str = "json") -> int:
         return 0
     except Exception as e:  # noqa: BLE001
         # The shell hook must never abort a shell start; it reports and exits.
-        if os.getenv("SIVE_DEBUG"):
-            _warn(f"sive: error reading snapshots — using empty env ({e})")
-        else:
-            _warn("sive: error reading snapshots — using empty env")
+        _warn(f"sive: error reading snapshots — using empty env ({e})")
         _emit({}, output_format)
         return 0
 

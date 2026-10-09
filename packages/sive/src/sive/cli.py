@@ -66,14 +66,17 @@ def _print_top_level_help() -> None:
         "  refresh   Sync local encrypted snapshots from the vault\n\n"
         "options:\n"
         "  -h, --help  show this help message and exit\n"
-        "  --version   show program's version number and exit\n\n"
+        "  --version   show program's version number and exit\n"
+        "  -y, --yes   answer yes to every confirmation\n"
+        "  --no-input  never prompt; fail naming the flag a prompt needs\n\n"
         "Examples:\n"
         "  sive setup\n"
         "  sive setup --tag work --tag personal\n"
         "  sive set OPENAI_API_KEY\n"
         "  sive set OPENAI_API_KEY --tag work\n"
         "  sive delete OPENAI_API_KEY --tag work\n"
-        "  sive refresh"
+        "  sive refresh\n"
+        '  printf %s "$PW" | sive setup -y --server URL --email ME --password-stdin'
     )
 
 
@@ -169,8 +172,37 @@ def _add_secret_target(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--vault", default="personal", help=_VAULT_HELP)
 
 
+def _prompt_flags() -> argparse.ArgumentParser:
+    """Flags every user-facing command accepts, before or after its name.
+
+    SUPPRESS keeps a subcommand from resetting a flag given before it.
+    """
+    flags = argparse.ArgumentParser(add_help=False, argument_default=argparse.SUPPRESS)
+    flags.add_argument(
+        "-y", "--yes", action="store_true", help="Answer yes to every confirmation"
+    )
+    flags.add_argument(
+        "--no-input",
+        action="store_true",
+        help="Never prompt; fail naming the flag a prompt needs",
+    )
+    return flags
+
+
+_PROMPT_FLAGS = _prompt_flags()
+
+
 def _add_setup(subparsers: argparse._SubParsersAction) -> None:
-    parser = subparsers.add_parser("setup", help="Configure current project directory")
+    parser = subparsers.add_parser(
+        "setup", help="Configure current project directory", parents=[_PROMPT_FLAGS]
+    )
+    parser.add_argument("--server", help="Vault server URL (first setup)")
+    parser.add_argument("--email", help="Vault account email")
+    parser.add_argument(
+        "--password-stdin",
+        action="store_true",
+        help="Read the master password from stdin",
+    )
     parser.add_argument(
         "--tag",
         action="append",
@@ -188,7 +220,7 @@ def _add_setup(subparsers: argparse._SubParsersAction) -> None:
 
 def _add_internal(subparsers: argparse._SubParsersAction) -> None:
     """Commands the mise hook calls, hidden from help."""
-    subparsers.add_parser("status", help=argparse.SUPPRESS)
+    subparsers.add_parser("status", help=argparse.SUPPRESS, parents=[_PROMPT_FLAGS])
 
     mise_env = subparsers.add_parser("_mise-env", help=argparse.SUPPRESS)
     mise_env.add_argument(
@@ -205,7 +237,9 @@ def _add_internal(subparsers: argparse._SubParsersAction) -> None:
 
 def _add_refresh(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
-        "refresh", help="Sync local encrypted snapshots from the vault"
+        "refresh",
+        help="Sync local encrypted snapshots from the vault",
+        parents=[_PROMPT_FLAGS],
     )
     parser.add_argument("--vault", default="personal", help=_VAULT_HELP)
     parser.add_argument(
@@ -215,7 +249,9 @@ def _add_refresh(subparsers: argparse._SubParsersAction) -> None:
 
 def _add_set_and_delete(subparsers: argparse._SubParsersAction) -> None:
     set_parser = subparsers.add_parser(
-        CMD_SET, help="Write or delete a secret in a tag folder"
+        CMD_SET,
+        help="Write or delete a secret in a tag folder",
+        parents=[_PROMPT_FLAGS],
     )
     set_parser.add_argument("key", help=_KEY_HELP)
     set_parser.add_argument(
@@ -232,7 +268,9 @@ def _add_set_and_delete(subparsers: argparse._SubParsersAction) -> None:
 
     _add_secret_target(
         subparsers.add_parser(
-            CMD_DELETE, help="Delete a secret by moving it to vault trash"
+            CMD_DELETE,
+            help="Delete a secret by moving it to vault trash",
+            parents=[_PROMPT_FLAGS],
         )
     )
 
@@ -256,6 +294,7 @@ def _main() -> None:
             "  sive refresh"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        parents=[_PROMPT_FLAGS],
     )
     parser.add_argument("--version", action="version", version=_version_string())
 
@@ -272,4 +311,42 @@ def _main() -> None:
     if handler is None:
         parser.print_help()
         sys.exit(0)
-    sys.exit(handler(args))
+    _dispatch(args, handler)
+
+
+def _dispatch(args: argparse.Namespace, handler) -> None:
+    """Apply the prompt mode, self-heal the keychain, then run the command."""
+    ui.configure(
+        assume_yes=getattr(args, "yes", False),
+        no_input=getattr(args, "no_input", False),
+        answers=_prompt_answers(args),
+    )
+    try:
+        # Internal commands serve the shell hook and must never prompt.
+        if not args.command.startswith("_"):
+            from .core import credentials
+
+            try:
+                credentials.ensure_unlocked()
+            except credentials.CredentialError as error:
+                ui.eprint(f"sive: {error}")
+                sys.exit(1)
+        sys.exit(handler(args))
+    except ui.NonInteractiveError as error:
+        ui.eprint(f"sive: {error}")
+        sys.exit(2)
+
+
+def _prompt_answers(args: argparse.Namespace) -> dict[str, str]:
+    """Map setup's answer flags to the prompts that name them."""
+    answers = {
+        flag: value
+        for flag, value in (
+            ("--server", getattr(args, "server", None)),
+            ("--email", getattr(args, "email", None)),
+        )
+        if value
+    }
+    if getattr(args, "password_stdin", False):
+        answers["--password-stdin"] = sys.stdin.read().rstrip("\n")
+    return answers

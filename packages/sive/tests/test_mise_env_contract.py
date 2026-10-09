@@ -15,7 +15,27 @@ import subprocess
 from pathlib import Path
 from unittest.mock import call, patch
 
+import pytest
+
 from sive.commands.mise_env import run
+
+
+@pytest.fixture(autouse=True)
+def no_background_sync():
+    """Keep the hook's sync spawn away from the real vault and state dir."""
+    with patch(
+        "sive.commands.mise_env.maybe_trigger_background_sync", return_value=False
+    ) as trigger:
+        yield trigger
+
+
+def test_run_starts_a_background_vault_sync(no_background_sync):
+    """US-01: secrets stay fresh without a manual `sive refresh`."""
+    with patch("sive.commands.mise_env.snapshot_exists", return_value=False):
+        run(["global"])
+
+    no_background_sync.assert_called_once_with("personal")
+
 
 # ---------------------------------------------------------------------------
 # Happy path — snapshot present, stdout is valid JSON env map, exit 0
@@ -183,6 +203,7 @@ def test_run_exception_returns_empty_json_and_warns(capsys):
     assert exit_code == 0
     assert json.loads(captured.out) == {}
     assert "error reading snapshots" in captured.err
+    assert "boom" in captured.err, "the hook must not hide why it loaded nothing"
 
 
 # ---------------------------------------------------------------------------

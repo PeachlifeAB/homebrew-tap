@@ -16,9 +16,19 @@ from ..core.bw import (
     set_server,
     unlock,
 )
-from ..core.keychain_macos import KeychainError, store_email, store_password
-from ..core.keychain_macos import get_email as get_stored_email
-from ..core.keychain_macos import get_password as get_stored_password
+from ..core.credentials import (
+    CredentialError as KeychainError,
+)
+from ..core.credentials import (
+    get_email as get_stored_email,
+)
+from ..core.credentials import (
+    get_password as get_stored_password,
+)
+from ..core.credentials import (
+    store_email,
+    store_password,
+)
 from ..core.project_config import write_project_config
 from ..core.sync_state import load_known_tags
 from ..core.vaults import (
@@ -40,7 +50,6 @@ ENV_CACHE_ON = "env_cache = true"
 # Keys and markers this code reads out of a mise config.
 MISE_CONFIG_FILENAME = "config.toml"
 ENV_CACHE_KEY = "env_cache"
-MISE_SOURCE_KEY = "_.source"
 # The vfox-style directive an older sive wrote; it crashes mise.
 LEGACY_SIVE_DIRECTIVE = "_.sive"
 SIVE_HOOK_PATH_MARKER = "sive/mise_hook/env.sh"
@@ -103,7 +112,9 @@ def _resolve_server(vault, vault_name: str) -> tuple[object, str, str, dict[str,
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     server_url = ""
     while not server_url:
-        server_url = ui.input("Server URL", placeholder="https://vw.yourdomain.com")
+        server_url = ui.input(
+            "Server URL", placeholder="https://vw.yourdomain.com", flag="--server"
+        )
         if not server_url:
             ui.echo("  Server URL is required.")
     write_vault_stub(vault_name, server_url)
@@ -163,8 +174,8 @@ def _store_credentials(
 ) -> tuple[int, str | None, str | None] | None:
     """Persist credentials for silent unlock.
 
-    Returns None to continue setup, or the caller's return value when a Keychain
-    failure ends the flow one way or the other.
+    Returns None to continue setup, or the caller's return value when credential
+    storage fails.
     """
     try:
         store_password(vault_name, master_password)
@@ -173,16 +184,16 @@ def _store_credentials(
         _print_keychain_error(e)
         ui.echo(
             "  Bitwarden login worked, but silent unlock is disabled until "
-            "Keychain is fixed.",
+            "credential storage is available.",
             file=sys.stderr,
         )
         if not ui.confirm("Continue setup without silent unlock?", default=True):
             return 1, None, None
         _patch_mise_config()
         ui.echo(_SETUP_COMPLETE)
-        ui.echo("Run 'sive setup' again after fixing Keychain to enable silent unlock.")
+        ui.echo("Run 'sive setup' again after enabling credential storage.")
         return 0, None, None
-    ui.echo("  Credentials stored in Keychain.")
+    ui.echo("  Credentials stored securely.")
     return None
 
 
@@ -309,8 +320,8 @@ def _run_login() -> tuple[int, str | None, str | None]:
 
     # Step 6: Credentials are required to log in or re-lock the vault.
     ui.echo("\nLogging in to Bitwarden...")
-    email = ui.input("Email")
-    master_password = ui.password("Master password")
+    email = ui.input("Email", flag="--email")
+    master_password = ui.password("Master password", flag="--password-stdin")
 
     if not _login_to_bitwarden(email, master_password, appdata_dir, status, vault):
         return 1, None, None
@@ -380,13 +391,13 @@ def _prompt_for_tags(login_session: tuple[str, str] | None) -> list[str] | None:
         )
 
     if available:
-        tags = ui.choose("Select project tags", available)
+        tags = ui.choose("Select project tags", available, flag="--tag")
         if not tags:
             ui.echo("  No tags selected. Aborted.", file=sys.stderr)
             return None
         return list(tags)
 
-    raw = ui.input("Project tag(s) to load", placeholder="e.g. myproject")
+    raw = ui.input("Project tag(s) to load", placeholder="e.g. myproject", flag="--tag")
     if not raw:
         ui.echo("  No tags entered. Aborted.", file=sys.stderr)
         return None
@@ -470,8 +481,8 @@ def _prompt_credentials(vault_name: str, bw_email: str) -> tuple[str, str]:
     if email:
         ui.echo(f"  Email: {email}")
     else:
-        email = ui.input("Email")
-    return email, ui.password("Master password")
+        email = ui.input("Email", flag="--email")
+    return email, ui.password("Master password", flag="--password-stdin")
 
 
 def _authenticate(
@@ -550,7 +561,7 @@ def run_relogin(vault_name: str = "personal") -> tuple[int, str | None, str | No
         )
         return 0, session_key, appdata_dir
 
-    ui.echo("  Logged in and keychain updated.")
+    ui.echo("  Logged in and credential storage updated.")
     return 0, session_key, appdata_dir
 
 

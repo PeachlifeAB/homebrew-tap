@@ -15,8 +15,10 @@ import secrets
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-from sive.core.keychain_macos import (
-    KeychainError,
+from sive.core.credentials import (
+    CredentialError as KeychainError,
+)
+from sive.core.credentials import (
     delete_secret,
     get_secret,
     store_secret,

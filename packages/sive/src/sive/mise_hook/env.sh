@@ -6,13 +6,17 @@
 # merges any exported vars — see the `_.source` directive in mise docs.
 #
 # This runs inside `mise hook-env`, where PATH is led by mise's shim
-# directory. Any interpreter resolved through PATH is a shim that re-enters
-# mise and re-sources this hook, forking without bound. sive is already a
-# Python process, so it emits shell-quoted exports itself and nothing else
-# here needs looking up.
+# directory. Any command resolved through PATH can be a shim that re-enters
+# mise and re-sources this hook, forking without bound — including `sive`
+# itself when mise installed it. SIVE_MISE_HOOK_ACTIVE stops the nested run;
+# it is unset before returning so mise never exports it into the shell.
 
+[ -n "${SIVE_MISE_HOOK_ACTIVE:-}" ] && return 0
 command -v sive >/dev/null 2>&1 || return 0
 
-mise_env="$(sive _mise-env --format=sh 2>/dev/null)" || return 0
-eval "${mise_env}"
-unset mise_env
+export SIVE_MISE_HOOK_ACTIVE=1
+mise_env="$(sive _mise-env --format=sh 2>/dev/null)"
+mise_env_status=$?
+unset SIVE_MISE_HOOK_ACTIVE
+[ "${mise_env_status}" -eq 0 ] && eval "${mise_env}"
+unset mise_env mise_env_status

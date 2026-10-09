@@ -33,6 +33,9 @@ def test_tag_from_source_rejects_missing_separator():
 def test_refresh_continues_after_invalid_source(capsys):
     with (
         patch("sive.commands.refresh.ensure_key") as mock_key,
+        patch("sive.core.vaults.load_vault"),
+        patch("sive.commands.refresh._ensure_session", return_value="session"),
+        patch("sive.commands.refresh.sync"),
         patch("sive.commands.refresh.load_source", return_value={"A": "1"}),
         patch("sive.commands.refresh.write_snapshot"),
     ):

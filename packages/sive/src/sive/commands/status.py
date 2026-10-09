@@ -8,14 +8,17 @@ from pathlib import Path
 
 from ..core import ui
 from ..core.bw import BWError, BWNotInstalledError, get_status
-from ..core.keychain_macos import KeychainError, get_password
+from ..core.credentials import CredentialError as KeychainError
+from ..core.credentials import get_password
 from ..core.project_config import read_project_tags
 from ..core.sync_state import load_sync_state, sync_is_stale
 from ..core.vaults import ConfigError, load_vault
-from .setup import ENV_CACHE_KEY, MISE_SOURCE_KEY, SIVE_MARKER
+from .setup import ENV_CACHE_KEY, SIVE_MARKER
 
 
-def _print_vault(vault, status: dict[str, str], *, keychain_ok: bool) -> None:
+def _print_vault(
+    vault, status: dict[str, str], *, credential_error: str | None
+) -> None:
     server_url = status.get("serverUrl") or vault.server
     ui.echo("Vault:")
     ui.echo(f"  name: {vault.name}")
@@ -25,7 +28,7 @@ def _print_vault(vault, status: dict[str, str], *, keychain_ok: bool) -> None:
     ui.echo(f"  server matches config: {'yes' if matches else 'no'}")
     ui.echo(f"  appdata dir: {vault.appdata_dir}")
     ui.echo(f"  status: {status.get('status', 'unknown')}")
-    ui.echo(f"  keychain: {'ok' if keychain_ok else 'not set'}")
+    ui.echo(f"  credentials: {'unavailable' if credential_error else 'ok'}")
     user_email = status.get("userEmail", "")
     if user_email:
         ui.echo(f"  user: {user_email}")
@@ -98,17 +101,17 @@ def run() -> int:
     if status is None:
         return 1
 
-    keychain_ok = True
+    credential_error = None
     try:
         get_password("personal")
-    except KeychainError:
-        keychain_ok = False
+    except KeychainError as error:
+        credential_error = str(error)
 
     server_url = status.get("serverUrl") or vault.server
     server_matches = server_url.rstrip("/") == vault.server.rstrip("/")
     hook_configured, cache_enabled, cache_ttl = _read_mise_state()
 
-    _print_vault(vault, status, keychain_ok=keychain_ok)
+    _print_vault(vault, status, credential_error=credential_error)
     ui.echo()
     _print_tags(read_project_tags(), hook_configured=hook_configured)
 
@@ -120,11 +123,8 @@ def run() -> int:
     ui.echo()
     _print_sync(vault.name, load_sync_state(vault.name))
 
-    if not keychain_ok:
-        ui.echo(
-            "\nWarning: master password not in Keychain — silent unlock will fail.",
-            file=sys.stderr,
-        )
+    if credential_error:
+        ui.echo(f"\nWarning: {credential_error}", file=sys.stderr)
         return 1
 
     return _print_warnings(
@@ -147,10 +147,11 @@ def _read_mise_state() -> tuple[bool, bool, str]:
 
     settings = data.get("settings", {})
     env = data.get("env", {})
-    hook_configured = (
-        isinstance(env, dict)
-        and MISE_SOURCE_KEY in env
-        and SIVE_MARKER in str(env[MISE_SOURCE_KEY])
+    # `_.source` is the dotted key env._.source; str() covers its string,
+    # list and { path = ... } forms.
+    directives = env.get("_", {}) if isinstance(env, dict) else {}
+    hook_configured = isinstance(directives, dict) and SIVE_MARKER in str(
+        directives.get("source", "")
     )
     return (
         hook_configured,

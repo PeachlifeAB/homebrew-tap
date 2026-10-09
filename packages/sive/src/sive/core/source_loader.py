@@ -12,7 +12,8 @@ from .bw import (
     list_items_in_folder,
     unlock,
 )
-from .keychain_macos import KeychainError, get_password
+from .credentials import CredentialError as KeychainError
+from .credentials import get_password
 from .vaults import ConfigError, load_vault
 
 # Matches: <vault>.folder:<selector>

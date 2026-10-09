@@ -15,6 +15,42 @@ from typing import TextIO
 SIGINT_EXIT_CODE = 130
 
 
+class NonInteractiveError(Exception):
+    """A prompt was needed where sive may not ask; names the flag to pass."""
+
+
+# Set once by the CLI from -y/--yes, --no-input and the answer flags.
+_assume_yes = False
+_no_input = False
+_answers: dict[str, str] = {}
+
+
+def configure(
+    *,
+    assume_yes: bool = False,
+    no_input: bool = False,
+    answers: dict[str, str] | None = None,
+) -> None:
+    global _assume_yes, _no_input, _answers
+    _assume_yes = assume_yes
+    _no_input = no_input
+    _answers = dict(answers or {})
+
+
+def can_prompt() -> bool:
+    return not _no_input and sys.stdin.isatty()
+
+
+def _answer(prompt: str, flag: str) -> str | None:
+    """Return the flag's answer, None to prompt, or raise when sive may not ask."""
+    if flag in _answers:
+        return _answers[flag]
+    if not can_prompt():
+        needed = flag or f"an answer to '{prompt}'"
+        raise NonInteractiveError(f"{needed} is required without a terminal")
+    return None
+
+
 def _run_gum(
     args: list[str], *, capture: bool = True
 ) -> subprocess.CompletedProcess[str]:
@@ -100,8 +136,11 @@ def style(
         echo(text)
 
 
-def input(prompt: str, *, placeholder: str = "") -> str:
+def input(prompt: str, *, placeholder: str = "", flag: str = "") -> str:
     """Prompt for a single line of text. Falls back to built-in input()."""
+    answer = _answer(prompt, flag)
+    if answer is not None:
+        return answer
     try:
         args = ["gum", "input", "--prompt", f"{prompt}: "]
         if placeholder:
@@ -114,8 +153,11 @@ def input(prompt: str, *, placeholder: str = "") -> str:
         return builtins.input(f"  {prompt}: ").strip()
 
 
-def password(prompt: str) -> str:
+def password(prompt: str, *, flag: str = "") -> str:
     """Prompt for a hidden password. Falls back to getpass."""
+    answer = _answer(prompt, flag)
+    if answer is not None:
+        return answer
     try:
         args = ["gum", "input", "--password", "--prompt", f"{prompt}: "]
         result = _run_gum(args)
@@ -128,6 +170,10 @@ def password(prompt: str) -> str:
 
 def confirm(prompt: str, *, default: bool = True) -> bool:
     """Ask a yes/no question. Falls back to y/n input loop."""
+    if _assume_yes:
+        return True
+    if not can_prompt():
+        raise NonInteractiveError(f"'{prompt}' needs confirmation: rerun with --yes")
     try:
         args = ["gum", "confirm", prompt]
         if default:
@@ -137,13 +183,17 @@ def confirm(prompt: str, *, default: bool = True) -> bool:
             raise FileNotFoundError
         return result.returncode == 0
     except FileNotFoundError:
-        hint = "[Y/n]" if default else "[y/N]"
-        while True:
-            raw = builtins.input(f"  {prompt} {hint}: ").strip().lower()
-            if raw in ("", "y", "yes"):
-                return True
-            if raw in ("n", "no"):
-                return False
+        return _confirm_plain(prompt, default=default)
+
+
+def _confirm_plain(prompt: str, *, default: bool) -> bool:
+    hint = "[Y/n]" if default else "[y/N]"
+    while True:
+        raw = builtins.input(f"  {prompt} {hint}: ").strip().lower()
+        if raw in ("", "y", "yes"):
+            return True
+        if raw in ("n", "no"):
+            return False
 
 
 def spin[T](title: str, fn: Callable[[], T]) -> T:
@@ -153,7 +203,11 @@ def spin[T](title: str, fn: Callable[[], T]) -> T:
 
 
 def choose(
-    header: str, options: list[str], *, selected: list[str] | None = None
+    header: str,
+    options: list[str],
+    *,
+    selected: list[str] | None = None,
+    flag: str = "",
 ) -> list[str]:
     """Multi-select checkbox list via gum choose --no-limit.
 
@@ -161,6 +215,9 @@ def choose(
     """
     if not options:
         return []
+    if not can_prompt():
+        needed = flag or f"a choice for '{header}'"
+        raise NonInteractiveError(f"{needed} is required without a terminal")
     try:
         args = [
             "gum",
