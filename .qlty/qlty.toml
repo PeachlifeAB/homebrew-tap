@@ -109,6 +109,19 @@ name = "zizmor"
 plugins = ["rubocop"]
 file_patterns = ["Formula/**", "Casks/**"]
 
+# The bash scripts in bin/ have no extension, and qlty 0.643.0 did not match
+# them by shebang (a planted SC2086 in bin/repo-state reported no issues), so
+# shellcheck never saw them. Name them; tests/test_workflows.py fails when a
+# bash script in bin/ is missing here.
+[file_types.shell]
+globs = [
+  "*.sh",
+  "*.bash",
+  "bin/preflight",
+  "bin/repo-state",
+  "bin/require-formulae-passed",
+]
+
 # bin/lib/*.sh are sourced fragments, not standalone scripts. They are
 # intentionally shebang-less; bin/preflight sources them and already carries
 # `# shellcheck source=` directives.
@@ -130,6 +143,14 @@ match.file_patterns = [
   "src/modules/engine/infrastructure/adapters.py",
   "src/modules/engine/api/cli.py",
 ]
+set.ignored = true
+
+# These two tests run a script from this repository (bin/repo-state,
+# bin/require-formulae-passed) with a literal argv to test it the way CI runs
+# it; no input reaches the command line. Scoped to those files only.
+[[triage]]
+match.rules = ["bandit:B404", "bandit:B603"]
+match.file_patterns = ["tests/test_manifest.py", "tests/test_workflows.py"]
 set.ignored = true
 
 # bandit B101 flags `assert`, which is what a test IS. Scope the suppression to

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Fail when `brew test-bot --only-formulae` skipped or failed a formula. It
+# ignores a failed `brew test` for a formula without a bottle for its current
+# version and still exits 0, listing the formula in this report instead.
+set -euo pipefail
+shopt -s nullglob
+
+reports=(skipped_or_failed_formulae-*.txt)
+if ((${#reports[@]} == 0)); then
+  echo "no skipped_or_failed_formulae-*.txt here: run after brew test-bot --only-formulae" >&2
+  exit 1
+fi
+
+for report in "${reports[@]}"; do
+  if [[ -s "${report}" ]]; then
+    echo "::error::brew test-bot skipped or failed $(<"${report}") (${report})" >&2
+    exit 1
+  fi
+done
+
+echo "every tested formula passed"

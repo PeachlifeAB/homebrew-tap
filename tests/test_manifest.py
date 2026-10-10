@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import re
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -152,19 +155,43 @@ class ReleasableProductTests(unittest.TestCase):
         assert product.choices is not None
         self.assertEqual(manifests, sorted(product.choices))
 
-    def test_repo_state_reports_every_product(self) -> None:
-        """bin/repo-state listed two products as literals, so lgtvctrl went
-        unreported. It reads the manifests now, executable name included —
-        lgtvctrl installs `tv`, not `lgtvctrl`."""
+    def test_repo_state_reports_every_product_in_every_section(self) -> None:
+        """Literal product lists in bin/repo-state left lgtvctrl and hyprspace
+        out of sections. Every section now comes from the manifests."""
         root = Path(__file__).resolve().parents[1]
-        script = (root / "bin" / "repo-state").read_text(encoding="utf-8")
-        self.assertIn('"$REPO"/release-products/*.toml', script)
-        for product in ("sive", "bgtail", "lgtvctrl"):
-            self.assertNotIn(
-                f"for product in {product}",
-                script,
-                "products must come from the manifests, not a literal list",
-            )
+        products = [
+            load_product(root, p.stem)
+            for p in sorted(root.glob("release-products/*.toml"))
+        ]
+        with tempfile.TemporaryDirectory() as stubs:
+            brew = Path(stubs) / "brew"
+            brew.write_text("#!/bin/sh\nexit 0\n")
+            brew.chmod(0o755)
+            output = subprocess.run(
+                [str(root / "bin" / "repo-state")],
+                capture_output=True,
+                text=True,
+                check=True,
+                env={**os.environ, "PATH": f"{stubs}{os.pathsep}{os.environ['PATH']}"},
+            ).stdout
+        sections: dict[str, str] = {}
+        section = ""
+        for line in output.splitlines():
+            if heading := re.fullmatch(r"--- (.+) ---", line):
+                section = heading.group(1)
+                sections[section] = ""
+            elif section:
+                sections[section] += line + "\n"
+        for product in products:
+            with self.subTest(product=product.name):
+                if isinstance(product, CaskManifest):
+                    self.assertIn(f"{product.cask}.rb:", sections["casks"])
+                else:
+                    self.assertIn(f"{product.formula}.rb:", sections["formulas"])
+                self.assertIn(
+                    f"release-products/{product.name}.toml",
+                    sections["release automation"],
+                )
 
 
 if __name__ == "__main__":

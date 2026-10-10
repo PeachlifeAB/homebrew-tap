@@ -11,14 +11,26 @@ git -C "$REPO" rev-parse --abbrev-ref HEAD
 git -C "$REPO" rev-parse HEAD
 git -C "$REPO" status --short
 
+# Every product section comes from the manifests: a literal list here is how
+# lgtvctrl and hyprspace went unreported.
+manifests=("$REPO"/release-products/*.toml)
+
+manifest_field() {
+    sed -n "s/^$2 = \"\(.*\)\"\$/\1/p" "$1"
+}
+
 echo "--- formulas ---"
-for formula in sive bgtail lgtvctrl; do
+for manifest in "${manifests[@]}"; do
+    grep -q '^kind = "formula"$' "$manifest" || continue
+    formula=$(manifest_field "$manifest" formula)
     echo "$formula.rb:"
     grep -E '^\s+(url|sha256|version)\s' "$REPO/Formula/$formula.rb"
 done
 
 echo "--- casks ---"
-for cask in hyprspace; do
+for manifest in "${manifests[@]}"; do
+    grep -q '^kind = "cask"$' "$manifest" || continue
+    cask=$(manifest_field "$manifest" cask)
     echo "$cask.rb:"
     grep -E '^\s+(version|sha256|url)\s' "$REPO/Casks/$cask.rb"
 done
@@ -26,11 +38,14 @@ done
 echo "--- release automation ---"
 for path in \
     bin/release \
-    release-products/sive.toml \
-    release-products/bgtail.toml \
+    "${manifests[@]#"$REPO/"}" \
     .github/workflows/tests.yml \
     .github/workflows/publish.yml; do
-    [[ -e "$REPO/$path" ]] && printf 'present: %s\n' "$path" || printf 'missing: %s\n' "$path"
+    if [[ -e "$REPO/$path" ]]; then
+        printf 'present: %s\n' "$path"
+    else
+        printf 'missing: %s\n' "$path"
+    fi
 done
 
 echo "--- toolchain ---"
@@ -42,16 +57,16 @@ echo "--- installed products ---"
 # The manifests name what is releasable, and each names its own executable:
 # lgtvctrl installs `tv`. Listing either here as a literal is how lgtvctrl went
 # unreported.
-for manifest in "$REPO"/release-products/*.toml; do
+for manifest in "${manifests[@]}"; do
     product=$(basename "$manifest" .toml)
     # A cask names no executable: it installs an app, reported by its token.
     if grep -q '^kind = "cask"$' "$manifest"; then
-        cask=$(sed -n 's/^cask = "\(.*\)"$/\1/p' "$manifest")
+        cask=$(manifest_field "$manifest" cask)
         brew list --cask --versions "$cask" 2>/dev/null ||
             echo "$product: not installed by Homebrew"
         continue
     fi
-    executable=$(sed -n 's/^executable = "\(.*\)"$/\1/p' "$manifest")
+    executable=$(manifest_field "$manifest" executable)
     command -v "$executable" 2>/dev/null || echo "$product: not on PATH"
     "$(brew --prefix)/bin/$executable" --version 2>/dev/null ||
         echo "$product: not installed by Homebrew"
