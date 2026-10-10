@@ -3,8 +3,8 @@ class Lgtvctrl < Formula
 
   desc "Command-line control for LG WebOS TVs"
   homepage "https://github.com/PeachlifeAB/lgtvctrl"
-  url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/lgtvctrl-0.1.1/lgtvctrl-0.1.1.tar.gz"
-  sha256 "7de711acacd2c5e7f39d4065e146e7832414336045bf16323949c3a84ab73b2b"
+  url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/lgtvctrl-0.1.2/lgtvctrl-0.1.2.tar.gz"
+  sha256 "7c2fe5f70689feeb81d179bed80cda95ed7e99f39c3ea3c3b7a76494974fd4b3"
   license "MIT"
 
   livecheck do
@@ -13,13 +13,8 @@ class Lgtvctrl < Formula
     regex(/^lgtvctrl-v?(\d+(?:\.\d+)+)$/i)
   end
 
-  bottle do
-    root_url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/lgtvctrl-0.1.1"
-    sha256 cellar: :any_skip_relocation, arm64_tahoe: "9fdcf8862eab230d840af56d869a923d5c992ff4c02966a0cd0664999ad229fe"
-  end
-
   depends_on "openssl@3"
-  depends_on "python@3.13"
+  depends_on "python@3.14"
 
   on_macos do
     depends_on arch: :arm64
@@ -60,7 +55,7 @@ class Lgtvctrl < Formula
   end
 
   def install
-    venv = virtualenv_create(libexec, "python3.13")
+    venv = virtualenv_create(libexec, "python3.14")
     venv.pip_install resources
     venv.pip_install_and_link buildpath, build_isolation: false
   end
