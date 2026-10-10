@@ -14,6 +14,15 @@ _LIVECHECK_BLOCK = re.compile(
     r"^ {2}livecheck do\n(.*?)^ {2}end$", re.DOTALL | re.MULTILINE
 )
 
+# The one definition of the Python the tap ships and tests on.
+TAP_PYTHON_FILE = ".python-version"
+
+# Formulae whose published bottle was built on an older Python. Each entry goes
+# when homebrew-tap-pvg.2 rebuilds that bottle on the tap Python; a formula
+# moved without its rebuild would pour a venv whose Python is no longer a
+# dependency.
+PYTHON_MIGRATION_PENDING = {"bgtail": "3.13", "lgtvctrl": "3.13"}
+
 
 class FormulaPolicyTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -26,13 +35,14 @@ class FormulaPolicyTests(unittest.TestCase):
         Installing with `uv pip install --no-deps` works only while a package
         has no runtime dependencies; the first one it gains yields a broken
         install rather than a build failure. Held for all three formulae
-        because scoping this to one is how the version assertion drifted.
+        because scoping this to one is how the version assertion drifted. Which
+        Python each formula builds on is its manifest's `python`, checked by
+        `test_the_formula_builds_on_the_python_its_manifest_declares`.
         """
         for formula in ("sive", "bgtail", "lgtvctrl"):
             with self.subTest(formula=formula):
                 content = (self.root / f"Formula/{formula}.rb").read_text()
                 self.assertIn("include Language::Python::Virtualenv", content)
-                self.assertIn('depends_on "python@3.13"', content)
                 self.assertNotIn('depends_on "uv"', content)
                 self.assertNotIn("uv pip install", content)
 
@@ -253,6 +263,28 @@ class ManifestPolicyTests(unittest.TestCase):
                     manifest.macos_only,
                     "depends_on :macos" in content,
                     "manifest macos_only disagrees with the formula",
+                )
+
+    def test_every_formula_builds_on_the_tap_python(self) -> None:
+        """The tap ships on the Python it tests on, `.python-version`. A formula
+        that depends on a homebrew-core Python library must build its venv on a
+        Python that library was built for: `cryptography` built for 3.14 is
+        invisible to a 3.13 venv, and only the formula test sees it."""
+        tap_python = (self.root / TAP_PYTHON_FILE).read_text().strip()
+        for manifest in self._manifests():
+            expected = PYTHON_MIGRATION_PENDING.get(manifest.formula, tap_python)
+            with self.subTest(product=manifest.name, python=expected):
+                content = (self.root / f"Formula/{manifest.formula}.rb").read_text()
+                self.assertIn(
+                    f'depends_on "python@{expected}"',
+                    content,
+                    f"formula must depend on python@{expected}; a migrated formula "
+                    "leaves PYTHON_MIGRATION_PENDING",
+                )
+                self.assertIn(
+                    f'virtualenv_create(libexec, "python{expected}")',
+                    content,
+                    f"formula must build its venv on python{expected}",
                 )
 
     def test_no_formula_installs_on_intel_macos(self) -> None:

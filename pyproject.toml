@@ -51,8 +51,6 @@ dev = [
 
 [tool.ruff]
 line-length = 88
-# The oldest Python the workspace supports; every formula builds on python@3.13.
-target-version = "py312"
 
 [tool.ruff.lint]
 extend-select = [

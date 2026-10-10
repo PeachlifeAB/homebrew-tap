@@ -23,7 +23,7 @@ class Sive < Formula
   depends_on "cryptography"
   depends_on :macos
   depends_on "mise"
-  depends_on "python@3.13"
+  depends_on "python@3.14"
 
   pypi_packages exclude_packages: "cryptography"
 
@@ -36,7 +36,7 @@ class Sive < Formula
   end
 
   def install
-    venv = virtualenv_create(libexec, "python3.13")
+    venv = virtualenv_create(libexec, "python3.14")
     venv.pip_install resources
     venv.pip_install_and_link buildpath, build_isolation: false
   end
