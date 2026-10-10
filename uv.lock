@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -410,6 +410,7 @@ wheels = [
 name = "homebrew-tap"
 version = "0.1.0"
 source = { virtual = "." }
+default-groups = ["dev", "test"]
 
 [package.dev-dependencies]
 dev = [
@@ -558,7 +559,7 @@ wheels = [
 
 [[package]]
 name = "lgtvctrl"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "packages/lgtvctrl" }
 dependencies = [
     { name = "bscpylgtv" },
