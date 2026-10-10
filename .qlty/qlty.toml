@@ -145,12 +145,16 @@ match.file_patterns = [
 ]
 set.ignored = true
 
-# These two tests run a script from this repository (bin/repo-state,
+# These tests run git or a script from this repository (bin/repo-state,
 # bin/require-formulae-passed) with a literal argv to test it the way CI runs
 # it; no input reaches the command line. Scoped to those files only.
 [[triage]]
 match.rules = ["bandit:B404", "bandit:B603"]
-match.file_patterns = ["tests/test_manifest.py", "tests/test_workflows.py"]
+match.file_patterns = [
+  "tests/test_formula_policy.py",
+  "tests/test_manifest.py",
+  "tests/test_workflows.py",
+]
 set.ignored = true
 
 # bandit B101 flags `assert`, which is what a test IS. Scope the suppression to

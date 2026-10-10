@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -264,6 +266,44 @@ class ManifestPolicyTests(unittest.TestCase):
                     "depends_on :macos" in content,
                     "manifest macos_only disagrees with the formula",
                 )
+
+    def test_a_formula_ships_on_the_python_its_bottle_was_built_on(self) -> None:
+        """A bottle's venv points at the Python it was built with. Changing a
+        formula's Python without rebuilding its bottle pours a venv whose
+        Python is no longer a dependency, as sive's did on main once."""
+        python = re.compile(r'depends_on "python@(3\.\d+)"')
+        for manifest in self._manifests():
+            path = f"Formula/{manifest.formula}.rb"
+            with self.subTest(product=manifest.name):
+                current = (self.root / path).read_text()
+                if "bottle do" not in current:
+                    continue
+                bottle_commit = self._git(
+                    "log", "-1", "--format=%H", "-G", "sha256 cellar:", "--", path
+                )
+                if not bottle_commit:
+                    self.skipTest("history unavailable (shallow clone)")
+                built_on = python.search(self._git("show", f"{bottle_commit}:{path}"))
+                ships_on = python.search(current)
+                assert built_on and ships_on, f"{path} names no python@"
+                self.assertEqual(
+                    ships_on.group(1),
+                    built_on.group(1),
+                    f"{path} ships on python@{ships_on.group(1)} but its bottle was "
+                    f"built on python@{built_on.group(1)} at {bottle_commit[:7]}; "
+                    "change the Python in a formula PR that rebuilds the bottle",
+                )
+
+    def _git(self, *args: str) -> str:
+        git = shutil.which("git")
+        assert git, "git is required to read a formula's bottle history"
+        return subprocess.run(
+            [git, *args],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
 
     def test_every_formula_builds_on_the_tap_python(self) -> None:
         """The tap ships on the Python it tests on, `.python-version`. A formula
