@@ -19,7 +19,7 @@ from .gates import Gate, GateCost, run_gates
 from .observation import lock_path, locked_version, observe_repository, project_version
 from .ports import ReleasePorts
 from .release_notes import NOTES_FILE, reviewed_section
-from .repository_gates import start_gates
+from .repository_gates import start_gates, state_gates
 from .sdist import verify_sdist
 
 # Workflows that must pass on the pushed prepare commit before the tag exists:
@@ -166,6 +166,11 @@ class ProducerRelease:
         self, observation: ReleaseObservation, version: str
     ) -> None:
         run_gates(self.start_gates(observation, version), report=lambda _: None)
+
+    def require_resumable(self, observation: ReleaseObservation) -> None:
+        """A resume continues a release whose tag may exist, so the tag and
+        version gates do not apply; the repository-state ones always do."""
+        run_gates(state_gates(observation.repository))
 
     def prepare(self, version: str, *, dry_run: bool) -> None:
         observation = self.observe(version)

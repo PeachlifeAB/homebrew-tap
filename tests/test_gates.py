@@ -150,6 +150,26 @@ class StartGateTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected, self._failure(observation))
 
+    def test_a_resume_is_held_to_the_same_repository_state(self) -> None:
+        """`resume` continues a release whose tag exists, so it skips the tag
+        and version gates, but never the Dependabot or upstream ones."""
+        with tempfile.TemporaryDirectory() as tmp:
+            release = ProducerRelease(
+                load_manifest(TAP_ROOT, "sive"),
+                Path(tmp),
+                ReleasePorts(FakeProcess(), FakeGit(), FakeGitHub(), FakeHasher()),
+            )
+            blocked = _observation(
+                "sive",
+                repository=_state(dependabot_branches=("origin dependabot/uv/x",)),
+                remote_tag_commit="b" * 40,
+                github_release_exists=True,
+            )
+
+            with self.assertRaisesRegex(ReleaseError, "Dependabot PR detected"):
+                release.require_resumable(blocked)
+            release.require_resumable(_observation("sive", remote_tag_commit="b" * 40))
+
     def test_project_root_must_be_the_package_directory(self) -> None:
         """`prepare` writes <project-root>/pyproject.toml while reads look in
         packages/<name>/ first, so the tap root passes a dry run and then edits
