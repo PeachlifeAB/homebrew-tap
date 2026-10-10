@@ -44,6 +44,13 @@ echo "--- installed products ---"
 # unreported.
 for manifest in "$REPO"/release-products/*.toml; do
     product=$(basename "$manifest" .toml)
+    # A cask names no executable: it installs an app, reported by its token.
+    if grep -q '^kind = "cask"$' "$manifest"; then
+        cask=$(sed -n 's/^cask = "\(.*\)"$/\1/p' "$manifest")
+        brew list --cask --versions "$cask" 2>/dev/null ||
+            echo "$product: not installed by Homebrew"
+        continue
+    fi
     executable=$(sed -n 's/^executable = "\(.*\)"$/\1/p' "$manifest")
     command -v "$executable" 2>/dev/null || echo "$product: not on PATH"
     "$(brew --prefix)/bin/$executable" --version 2>/dev/null ||

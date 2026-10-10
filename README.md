@@ -1,33 +1,62 @@
-# brew
+# homebrew-tap
 
-Public Homebrew tap for Hyprspace.
+Homebrew formulae and casks for Peachlife software, installable through the
+[Homebrew](https://brew.sh/) package manager.
 
-## Install
+## Installation
 
-```bash
+Since [Homebrew 6.0.0](https://brew.sh/2026/06/11/homebrew-6.0.0/) a
+non-official tap must be trusted before Homebrew will load it. Installing by
+fully qualified name trusts only that item, so no separate tap or trust step is
+needed:
+
+```
+brew install PeachlifeAB/tap/<FORMULA>
+brew install --cask PeachlifeAB/tap/<CASK>
+```
+
+To install by short name instead, trust the item first — or the whole tap,
+which accepts every current and future item from it:
+
+```
 brew tap PeachlifeAB/tap
-brew install --cask hyprspace
+brew trust --formula PeachlifeAB/tap/<FORMULA>
+brew install <FORMULA>
 ```
 
-## Update
+## Formulae
 
-```bash
-brew upgrade --cask hyprspace
+| Repository | Formula | Description |
+| ---------- | ------- | ----------- |
+| [bgtail](https://github.com/PeachlifeAB/bgtail) | [formula](Formula/bgtail.rb) | Run long-running commands detached with minimal heartbeat |
+| [lgtvctrl](https://github.com/PeachlifeAB/lgtvctrl) | [formula](Formula/lgtvctrl.rb) | Command-line control for LG WebOS TVs |
+| [sive](https://github.com/PeachlifeAB/sive) | [formula](Formula/sive.rb) | Sync secrets from your vault into your shell |
+
+## Casks
+
+| Repository | Cask | Description |
+| ---------- | ---- | ----------- |
+| [hyprspace](https://hyprspace.net/) | [cask](Casks/hyprspace.rb) | Tiling window manager based on AeroSpace |
+
+All formulae currently require macOS.
+
+## Updating and uninstalling
+
 ```
-
-## Uninstall
-
-```bash
-brew uninstall --cask hyprspace
+brew upgrade <FORMULA>
+brew uninstall <FORMULA>
 brew untap PeachlifeAB/tap
 ```
 
-## Public release surfaces
+## Hyprspace release artifacts
 
-The Hyprspace source repository is open-source at `PeachlifeAB/hyprspace-core`. Public release artifacts and public-facing documentation live in the following places:
+Source is open at
+[hyprspace-core](https://github.com/PeachlifeAB/hyprspace-core). Releases,
+[legal disclosure](https://github.com/PeachlifeAB/hyprspace-releases/blob/main/LEGAL.md)
+and [licence](https://github.com/PeachlifeAB/hyprspace-releases/blob/main/LICENSE)
+are published in
+[hyprspace-releases](https://github.com/PeachlifeAB/hyprspace-releases).
 
-- Releases and manual downloads: https://github.com/PeachlifeAB/hyprspace-releases
-- Legal disclosure: https://github.com/PeachlifeAB/hyprspace-releases/blob/main/LEGAL.md
-- License: https://github.com/PeachlifeAB/hyprspace-releases/blob/main/LICENSE
+## Documentation
 
-For version-specific release notes and published zip assets, use the GitHub Releases page in `PeachlifeAB/hyprspace-releases`.
+`brew help`, `man brew`, or [Homebrew's documentation](https://docs.brew.sh/).

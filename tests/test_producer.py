@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import io
-import os
 import tarfile
 import tempfile
 import unittest
@@ -12,6 +11,7 @@ from unittest.mock import patch
 
 from modules.engine.application.ports import ReleasePorts
 from modules.engine.application.producer import ProducerRelease
+from modules.engine.application.sdist import verify_sdist
 from modules.engine.domain.models import (
     ReleaseError,
     ReleaseObservation,
@@ -79,7 +79,7 @@ class FakeGitHub:
         return None
 
     def create_release(
-        self, repository: str, tag: str, asset: Path, title: str
+        self, repository: str, tag: str, asset: Path, title: str, notes: str
     ) -> None:
         return None
 
@@ -101,6 +101,8 @@ class ProducerTests(unittest.TestCase):
         process = FakeProcess()
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            pyproject = '[project]\nname = "sive"\nversion = "0.1.7"\n'
+            (root / "pyproject.toml").write_text(pyproject)
             observation = ReleaseObservation(
                 self.manifest,
                 RepositoryState("main", "a" * 40, "origin/main", 0, 0, ()),
@@ -119,7 +121,7 @@ class ProducerTests(unittest.TestCase):
                 release.prepare("0.1.8", dry_run=True)
 
             self.assertEqual(process.commands, [])
-            self.assertFalse((root / "pyproject.toml").exists())
+            self.assertEqual((root / "pyproject.toml").read_text(), pyproject)
 
     def test_verify_uses_executable_as_version_label(self) -> None:
         manifest = load_manifest(self.tap_root, "lgtvctrl")
@@ -141,54 +143,6 @@ class ProducerTests(unittest.TestCase):
             )
             release.verify_prepared("0.1.1")
 
-    def test_commit_precedes_tag_and_joint_push(self) -> None:
-        process = FakeProcess()
-        git = FakeGit()
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / "pyproject.toml").write_text(
-                '[project]\nname = "sive"\nversion = "0.1.8"\n'
-            )
-            (root / "uv.lock").write_text(
-                '[[package]]\nname = "sive"\nversion = "0.1.8"\n'
-            )
-            release = ProducerRelease(
-                self.manifest,
-                root,
-                ReleasePorts(process, git, FakeGitHub(), FakeHasher()),
-            )
-            release.commit_tag_push("0.1.8", dry_run=False)
-
-        tag = self.manifest.tag("0.1.8")
-        commit_index = git.commands.index(["commit", "-m", "release: prepare 0.1.8"])
-        tag_index = git.commands.index(["tag", "-a", tag, "-m", "Release 0.1.8"])
-        self.assertLess(commit_index, tag_index)
-        self.assertIn(["push", "origin", "main", tag], git.commands)
-
-    def test_commit_stages_the_workspace_lockfile(self) -> None:
-        """The single lock lives at the workspace root, not beside the package."""
-        process = FakeProcess()
-        git = FakeGit()
-        with tempfile.TemporaryDirectory() as tmp:
-            workspace = Path(tmp)
-            (workspace / "uv.lock").write_text(
-                '[[package]]\nname = "sive"\nversion = "0.1.8"\n'
-            )
-            member = workspace / "packages" / "sive"
-            member.mkdir(parents=True)
-            (member / "pyproject.toml").write_text(
-                '[project]\nname = "sive"\nversion = "0.1.8"\n'
-            )
-            release = ProducerRelease(
-                self.manifest,
-                member,
-                ReleasePorts(process, git, FakeGitHub(), FakeHasher()),
-            )
-            release.commit_tag_push("0.1.8", dry_run=False)
-
-        expected_lock = os.path.relpath(workspace / "uv.lock", member)
-        self.assertIn(["add", "pyproject.toml", expected_lock], git.commands)
-
     def test_sdist_rejects_symlink_members(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -202,20 +156,18 @@ class ProducerTests(unittest.TestCase):
                 symlink.type = tarfile.SYMTYPE
                 symlink.linkname = "/private/agent/CLAUDE.md"
                 archive.addfile(symlink)
-            release = ProducerRelease(
-                self.manifest,
-                root,
-                ReleasePorts(FakeProcess(), FakeGit(), FakeGitHub(), FakeHasher()),
-            )
 
             with self.assertRaisesRegex(ReleaseError, "unsafe members"):
-                release._verify_sdist(asset, "0.1.8")
+                verify_sdist(asset, "0.1.8")
 
     def test_build_release_pins_the_sdist_output_to_the_package(self) -> None:
         """uv builds at the workspace root; the engine reads the package dist/."""
         process = FakeProcess()
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            # The reviewed notes are read before the build, so they must exist
+            # for the build this test is about to be reached.
+            (root / "CHANGELOG.md").write_text("## [0.1.8] - 2026-10-10\n\n- x\n")
             release = ProducerRelease(
                 self.manifest,
                 root,

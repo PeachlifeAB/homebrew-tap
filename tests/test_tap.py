@@ -8,8 +8,8 @@ from pathlib import Path
 
 from modules.engine.application.ports import ProcessPort
 from modules.engine.application.tap import TapRelease, source_url_pattern
-from modules.engine.domain.models import Handoff, ReleaseError
-from modules.engine.infrastructure.manifest import load_manifest
+from modules.engine.domain.models import Handoff, ProductManifest, ReleaseError
+from modules.engine.infrastructure.manifest import load_manifest, load_product
 
 
 class FakeProcess:
@@ -67,7 +67,7 @@ class FakeGitHub:
         return self.commit
 
     def create_release(
-        self, repository: str, tag: str, asset: Path, title: str
+        self, repository: str, tag: str, asset: Path, title: str, notes: str
     ) -> None:
         return None
 
@@ -146,6 +146,56 @@ class TapFormulaTests(unittest.TestCase):
         )
         release.post_verify("0.1.1", root)
 
+    def _post_verify_commands(self, *, installed: bool) -> list[list[str]]:
+        """Every command post-verify issues for sive on a machine where brew
+        does (or does not) already have the formula."""
+
+        class BrewProcess(FakeProcess):
+            def __init__(self) -> None:
+                super().__init__(b"")
+                self.commands: list[list[str]] = []
+
+            def run(
+                self,
+                args: list[str],
+                *,
+                cwd: Path,
+                capture: bool = False,
+                timeout_seconds: float | None = None,
+            ) -> str:
+                self.commands.append(args)
+                if args == ["brew", "--prefix"]:
+                    return "/tmp"
+                return "sive 0.1.10" if capture else ""
+
+            def try_run(self, args: list[str], *, cwd: Path) -> tuple[int, str]:
+                self.commands.append(args)
+                return (0, "sive 0.1.9") if installed else (1, "")
+
+        root = Path(__file__).resolve().parents[1]
+        process = BrewProcess()
+        release = TapRelease(
+            root,
+            load_manifest(root, "sive"),
+            process,
+            FakeGit(),
+            FakeGitHub("a" * 40),
+        )
+        release.post_verify("0.1.10", root)
+        return process.commands
+
+    def test_post_verify_installs_a_formula_brew_does_not_have(self) -> None:
+        commands = self._post_verify_commands(installed=False)
+
+        self.assertIn(["brew", "install", "peachlifeab/tap/sive"], commands)
+        self.assertNotIn(["brew", "upgrade", "sive"], commands)
+
+    def test_post_verify_upgrades_a_formula_brew_already_has(self) -> None:
+        commands = self._post_verify_commands(installed=True)
+
+        self.assertIn(["brew", "upgrade", "sive"], commands)
+        self.assertNotIn(["brew", "install", "peachlifeab/tap/sive"], commands)
+
     def test_version_assertion_pattern_rejects_only_hardcoded_versions(
         self,
     ) -> None:
@@ -189,7 +239,12 @@ class TapFormulaTests(unittest.TestCase):
         validates the new release asset before changing the formula.
         """
         canonical = Path(__file__).resolve().parents[1]
-        for path in sorted((canonical / "release-products").glob("*.toml")):
+        formula_manifests = (
+            path
+            for path in sorted((canonical / "release-products").glob("*.toml"))
+            if isinstance(load_product(canonical, path.stem), ProductManifest)
+        )
+        for path in formula_manifests:
             with self.subTest(product=path.stem):
                 manifest = load_manifest(canonical, path.stem)
                 with tempfile.TemporaryDirectory() as tmp:

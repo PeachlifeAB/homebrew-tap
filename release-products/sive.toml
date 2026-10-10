@@ -1,4 +1,5 @@
 schema_version = 1
+kind = "formula"
 name = "sive"
 repository = "PeachlifeAB/homebrew-tap"
 formula = "sive"

@@ -2,16 +2,22 @@ from __future__ import annotations
 
 import tomllib
 from pathlib import Path
+from typing import Any
 
-from ..domain.models import ProductManifest, ReleaseError
+from ..domain.models import (
+    CaskManifest,
+    Product,
+    ProductKind,
+    ProductManifest,
+    ReleaseError,
+)
 
 QUALITY_TASK = "test"
 VERSION_PLACEHOLDER = "{version}"
+KIND_KEY = "kind"
 
-_ALLOWED_KEYS = {
-    "schema_version",
-    "name",
-    "repository",
+_COMMON_KEYS = {"schema_version", KIND_KEY, "name", "repository"}
+_FORMULA_KEYS = _COMMON_KEYS | {
     "formula",
     "executable",
     "package",
@@ -21,7 +27,8 @@ _ALLOWED_KEYS = {
     "smoke_args",
     "macos_only",
 }
-_REQUIRED_KEYS = _ALLOWED_KEYS
+_CASK_KEYS = _COMMON_KEYS | {"cask", "release_notes_template"}
+_KEYS_BY_KIND = {ProductKind.FORMULA: _FORMULA_KEYS, ProductKind.CASK: _CASK_KEYS}
 _MUTABLE_KEYS = {
     "version",
     "commit",
@@ -32,11 +39,11 @@ _MUTABLE_KEYS = {
 }
 
 
-def _validate_keys(keys: set[str]) -> None:
+def _validate_keys(keys: set[str], allowed: set[str]) -> None:
     """Reject mutable, unknown or missing manifest keys."""
     forbidden = keys & _MUTABLE_KEYS
-    unknown = keys - _ALLOWED_KEYS
-    missing = _REQUIRED_KEYS - keys
+    unknown = keys - allowed
+    missing = allowed - keys
     if forbidden:
         raise ReleaseError(
             f"manifest contains mutable state: {', '.join(sorted(forbidden))}"
@@ -49,16 +56,27 @@ def _validate_keys(keys: set[str]) -> None:
         raise ReleaseError(f"manifest is missing keys: {', '.join(sorted(missing))}")
 
 
-def load_manifest(tap_root: Path, product: str) -> ProductManifest:
+def _read(tap_root: Path, product: str) -> dict[str, Any]:
     path = tap_root / "release-products" / f"{product}.toml"
     if not path.is_file():
         raise ReleaseError(f"unknown product manifest: {path}")
+    return tomllib.loads(path.read_text(encoding="utf-8"))
 
-    data = tomllib.loads(path.read_text(encoding="utf-8"))
-    _validate_keys(set(data))
 
-    if data["schema_version"] != 1:
-        raise ReleaseError(f"unsupported manifest schema: {data['schema_version']}")
+def _kind(data: dict[str, Any]) -> ProductKind:
+    if KIND_KEY not in data:
+        raise ReleaseError(f"manifest is missing keys: {KIND_KEY}")
+    try:
+        return ProductKind(data[KIND_KEY])
+    except ValueError:
+        known = ", ".join(kind.value for kind in ProductKind)
+        raise ReleaseError(
+            f"manifest has unknown {KIND_KEY} {data[KIND_KEY]!r}; "
+            f"expected one of: {known}"
+        ) from None
+
+
+def _formula(data: dict[str, Any]) -> ProductManifest:
     if not isinstance(data["smoke_args"], list) or not all(
         isinstance(value, str) for value in data["smoke_args"]
     ):
@@ -71,7 +89,6 @@ def load_manifest(tap_root: Path, product: str) -> ProductManifest:
         raise ReleaseError(
             f"manifest asset_template must contain {VERSION_PLACEHOLDER}"
         )
-
     return ProductManifest(
         schema_version=data["schema_version"],
         name=data["name"],
@@ -85,3 +102,35 @@ def load_manifest(tap_root: Path, product: str) -> ProductManifest:
         smoke_args=tuple(data["smoke_args"]),
         macos_only=data["macos_only"],
     )
+
+
+def _cask(data: dict[str, Any]) -> CaskManifest:
+    if VERSION_PLACEHOLDER not in data["release_notes_template"]:
+        raise ReleaseError(
+            f"manifest release_notes_template must contain {VERSION_PLACEHOLDER}"
+        )
+    return CaskManifest(
+        schema_version=data["schema_version"],
+        name=data["name"],
+        repository=data["repository"],
+        cask=data["cask"],
+        release_notes_template=data["release_notes_template"],
+    )
+
+
+def load_product(tap_root: Path, product: str) -> Product:
+    """The manifest of a formula or a cask, whichever `kind` it declares."""
+    data = _read(tap_root, product)
+    kind = _kind(data)
+    _validate_keys(set(data), _KEYS_BY_KIND[kind])
+    if data["schema_version"] != 1:
+        raise ReleaseError(f"unsupported manifest schema: {data['schema_version']}")
+    return _formula(data) if kind is ProductKind.FORMULA else _cask(data)
+
+
+def load_manifest(tap_root: Path, product: str) -> ProductManifest:
+    """A formula's manifest; a cask has its own shape and is refused here."""
+    manifest = load_product(tap_root, product)
+    if not isinstance(manifest, ProductManifest):
+        raise ReleaseError(f"{product} is a cask, not a formula")
+    return manifest

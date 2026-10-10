@@ -20,6 +20,10 @@ class Bgtail < Formula
 
   depends_on "python@3.13"
 
+  on_macos do
+    depends_on arch: :arm64
+  end
+
   # Build backend. Homebrew's python vendors only pip, and the build sandbox has
   # no network, so an isolated build cannot fetch it. Vendored here and installed
   # into the venv, which `build_isolation: false` below then builds against.

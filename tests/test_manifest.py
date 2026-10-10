@@ -4,8 +4,79 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from modules.engine.domain.models import Handoff, ReleaseError
-from modules.engine.infrastructure.manifest import load_manifest
+from modules.engine.domain.models import (
+    CaskManifest,
+    Handoff,
+    ProductKind,
+    ProductManifest,
+    ReleaseError,
+)
+from modules.engine.infrastructure.manifest import load_manifest, load_product
+
+
+class ProductKindTests(unittest.TestCase):
+    """A manifest declares what kind of product it is, and a cask is not a formula
+    with fields left blank: it has no package, tag, sdist or quality task."""
+
+    def setUp(self) -> None:
+        self.tap_root = Path(__file__).resolve().parents[1]
+
+    def _manifest_dir(self, name: str, text: str) -> Path:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        (root / "release-products").mkdir()
+        (root / "release-products" / f"{name}.toml").write_text(text)
+        return root
+
+    def test_formula_manifests_declare_their_kind(self) -> None:
+        for name in ("sive", "bgtail", "lgtvctrl"):
+            with self.subTest(product=name):
+                manifest = load_product(self.tap_root, name)
+
+                self.assertIsInstance(manifest, ProductManifest)
+                self.assertEqual(manifest.kind, ProductKind.FORMULA)
+
+    def test_the_cask_manifest_loads_as_a_cask(self) -> None:
+        manifest = load_product(self.tap_root, "hyprspace")
+
+        assert isinstance(manifest, CaskManifest)
+        self.assertEqual(manifest.kind, ProductKind.CASK)
+        self.assertEqual(manifest.cask, "hyprspace")
+
+    def test_a_cask_announcement_links_the_upstream_notes_for_the_version(self) -> None:
+        manifest = load_product(self.tap_root, "hyprspace")
+        assert isinstance(manifest, CaskManifest)
+
+        self.assertEqual(
+            manifest.release_notes_url("0.5.0"),
+            "https://github.com/PeachlifeAB/hyprspace-releases/releases/tag/v0.5.0",
+        )
+
+    def test_loading_a_cask_as_a_formula_is_refused(self) -> None:
+        with self.assertRaisesRegex(ReleaseError, "hyprspace is a cask"):
+            load_manifest(self.tap_root, "hyprspace")
+
+    def test_a_manifest_without_a_kind_is_rejected(self) -> None:
+        source = (self.tap_root / "release-products" / "sive.toml").read_text()
+        root = self._manifest_dir("sive", source.replace('kind = "formula"\n', ""))
+
+        with self.assertRaisesRegex(ReleaseError, "kind"):
+            load_product(root, "sive")
+
+    def test_an_unknown_kind_is_rejected(self) -> None:
+        source = (self.tap_root / "release-products" / "sive.toml").read_text()
+        root = self._manifest_dir("sive", source.replace('formula"', 'font"', 1))
+
+        with self.assertRaisesRegex(ReleaseError, "unknown kind"):
+            load_product(root, "sive")
+
+    def test_a_cask_manifest_may_not_carry_formula_fields(self) -> None:
+        source = (self.tap_root / "release-products" / "hyprspace.toml").read_text()
+        root = self._manifest_dir("hyprspace", source + 'package = "hyprspace"\n')
+
+        with self.assertRaisesRegex(ReleaseError, "unknown keys: package"):
+            load_product(root, "hyprspace")
 
 
 class ManifestTests(unittest.TestCase):

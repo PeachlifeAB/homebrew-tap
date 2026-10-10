@@ -9,10 +9,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import NamedTuple
 
+from modules.engine.application.cask_release import CaskRelease
 from modules.engine.application.ports import ReleasePorts
 from modules.engine.application.producer import ProducerRelease
 from modules.engine.application.tap import TapRelease
-from modules.engine.domain.models import ProductManifest
+from modules.engine.domain.models import CaskManifest, ProductManifest
 from modules.engine.infrastructure.adapters import (
     GitAdapter,
     GitHubAdapter,
@@ -55,3 +56,9 @@ def build(product: str, project_root: Path) -> Components:
         ),
         tap=TapRelease(TAP_ROOT, manifest, process, git, github),
     )
+
+
+def build_cask(manifest: CaskManifest) -> CaskRelease:
+    """Construct the use case that checks a generated cask bump."""
+    process = SubprocessAdapter()
+    return CaskRelease(manifest, TAP_ROOT, process, GitAdapter(process))

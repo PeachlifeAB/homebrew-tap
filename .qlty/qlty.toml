@@ -132,16 +132,6 @@ match.file_patterns = [
 ]
 set.ignored = true
 
-# macos-26-intel is a real GitHub-hosted runner that actionlint's bundled label
-# list has not caught up to (it knows macos-26 and macos-15-intel). The upstream
-# fix is .github/actionlint.yaml, which is committed, but qlty runs actionlint
-# sandboxed and does not read it. Scope the suppression to this one rule so
-# every other actionlint check stays active.
-[[triage]]
-match.rules = ["actionlint:runner-label"]
-match.file_patterns = [".github/workflows/**"]
-set.ignored = true
-
 # bandit B101 flags `assert`, which is what a test IS. Scope the suppression to
 # test files only - an assert in production code still reports, because those
 # are stripped by `python -O`.

@@ -69,14 +69,21 @@ def locked_version(project_root: Path, package: str) -> str:
     raise ReleaseError(f"package {package!r} not found in {path}")
 
 
-def observe_repository(
-    manifest: ProductManifest,
-    project_root: Path,
-    git: GitPort,
-    github: GitHubPort,
-    version: str,
-) -> ReleaseObservation:
-    manifest.validate_version(version)
+def changed_paths(porcelain_lines: tuple[str, ...]) -> list[str]:
+    """The paths in `git status --porcelain` lines (`<xy> <path>`, or
+    `<xy> <from> -> <to>` for a rename). The adapter strips the output, so the
+    first line may have lost its leading status space: split the status off by
+    whitespace, not by column."""
+    paths: list[str] = []
+    for line in porcelain_lines:
+        _, _, rest = line.strip().partition(" ")
+        paths.extend(side.strip().strip('"') for side in rest.split(" -> "))
+    return paths
+
+
+def repository_state(git: GitPort, project_root: Path) -> RepositoryState:
+    """Where the checkout stands against its upstream: the state every release
+    of any product, formula or cask, is checked from."""
     branch = git.output(["rev-parse", "--abbrev-ref", "HEAD"], cwd=project_root)
     head = git.output(["rev-parse", "HEAD"], cwd=project_root)
     dirty = tuple(
@@ -99,7 +106,24 @@ def observe_repository(
         ahead, behind = behind, ahead
     except CommandFailed:
         tracking, ahead, behind = "", 0, 0
+    return RepositoryState(
+        branch=branch,
+        head=head,
+        tracking=tracking,
+        ahead=ahead,
+        behind=behind,
+        dirty=dirty,
+    )
 
+
+def observe_repository(
+    manifest: ProductManifest,
+    project_root: Path,
+    git: GitPort,
+    github: GitHubPort,
+    version: str,
+) -> ReleaseObservation:
+    manifest.validate_version(version)
     tag = manifest.tag(version)
     try:
         local_tag_commit = git.output(
@@ -110,14 +134,7 @@ def observe_repository(
 
     return ReleaseObservation(
         product=manifest,
-        repository=RepositoryState(
-            branch=branch,
-            head=head,
-            tracking=tracking,
-            ahead=ahead,
-            behind=behind,
-            dirty=dirty,
-        ),
+        repository=repository_state(git, project_root),
         declared_version=project_version(project_root, manifest.package),
         locked_version=locked_version(project_root, manifest.package),
         local_tag_commit=local_tag_commit,

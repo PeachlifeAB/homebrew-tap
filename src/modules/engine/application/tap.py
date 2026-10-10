@@ -6,7 +6,10 @@ import re
 from pathlib import Path
 
 from ..domain.models import Handoff, ProductManifest, ReleaseError
+from .gates import Gate, GateCost
 from .ports import GitHubPort, GitPort, ProcessPort
+
+PUBLISH_WORKFLOW = "publish.yml"
 
 CHECK_DISCOVERY_ATTEMPTS = 60
 PUBLISH_RUN_DISCOVERY_ATTEMPTS = 30
@@ -63,6 +66,48 @@ class TapRelease:
     @property
     def formula_path(self) -> Path:
         return self.tap_root / "Formula" / f"{self.manifest.formula}.rb"
+
+    def release_gates(self) -> tuple[Gate, ...]:
+        """The checks the tap owns, so CI cannot be the first to find them."""
+
+        def publish_workflow_present() -> None:
+            code, output = self.process.try_run(
+                [
+                    "gh",
+                    "workflow",
+                    "view",
+                    PUBLISH_WORKFLOW,
+                    "--repo",
+                    self.tap_repository,
+                ],
+                cwd=self.tap_root,
+            )
+            if code != 0:
+                raise ReleaseError(
+                    f"{PUBLISH_WORKFLOW} is not available in "
+                    f"{self.tap_repository}: {output.strip()}"
+                )
+
+        def brew_style_clean() -> None:
+            # `brew test-bot --only-tap-syntax` styles every .sh in the tap with
+            # shellcheck --enable=all; styling only the formula misses them.
+            tracked = self.git.output(["ls-files", "*.sh"], cwd=self.tap_root)
+            files = [
+                str(self.formula_path),
+                *(str(self.tap_root / name) for name in tracked.split()),
+            ]
+            code, output = self.process.try_run(
+                ["brew", "style", *files], cwd=self.tap_root
+            )
+            if code != 0:
+                raise ReleaseError(f"brew style reported offenses:\n{output.strip()}")
+
+        return (
+            Gate(
+                "publish-workflow-present", GateCost.SECONDS, publish_workflow_present
+            ),
+            Gate("brew-style-clean", GateCost.SECONDS, brew_style_clean),
+        )
 
     def validate_handoff(self, handoff: Handoff) -> None:
         expected = {
@@ -222,7 +267,7 @@ class TapRelease:
                 "gh",
                 "workflow",
                 "run",
-                "publish.yml",
+                PUBLISH_WORKFLOW,
                 "--repo",
                 self.tap_repository,
                 "-f",
@@ -251,7 +296,18 @@ class TapRelease:
     def post_verify(self, version: str, project_root: Path) -> None:
         tap_ref = f"peachlifeab/tap/{self.manifest.formula}"
         self.process.run(["brew", "update"], cwd=self.tap_root)
-        self.process.run(["brew", "upgrade", self.manifest.formula], cwd=self.tap_root)
+        # `brew upgrade` errors on a formula that was never installed (exit 1,
+        # "not installed"), and a first-time machine is a user's machine too.
+        installed, _ = self.process.try_run(
+            ["brew", "list", "--formula", "--versions", self.manifest.formula],
+            cwd=self.tap_root,
+        )
+        if installed == 0:
+            self.process.run(
+                ["brew", "upgrade", self.manifest.formula], cwd=self.tap_root
+            )
+        else:
+            self.process.run(["brew", "install", tap_ref], cwd=self.tap_root)
         prefix = Path(
             self.process.run(["brew", "--prefix"], cwd=self.tap_root, capture=True)
         )
@@ -301,7 +357,7 @@ class TapRelease:
             "--repo",
             self.tap_repository,
             "--workflow",
-            "publish.yml",
+            PUBLISH_WORKFLOW,
             "--limit",
             "1",
             "--json",

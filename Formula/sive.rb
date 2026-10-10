@@ -18,6 +18,7 @@ class Sive < Formula
     sha256 cellar: :any_skip_relocation, arm64_tahoe: "cc177c7d0f4310fa8e9781bc72e3c5b4d9d0922bb04ed38ce667ab675af39f91"
   end
 
+  depends_on arch: :arm64
   depends_on "bitwarden-cli"
   depends_on "cryptography"
   depends_on :macos

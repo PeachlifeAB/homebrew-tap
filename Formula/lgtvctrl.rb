@@ -21,6 +21,10 @@ class Lgtvctrl < Formula
   depends_on "openssl@3"
   depends_on "python@3.13"
 
+  on_macos do
+    depends_on arch: :arm64
+  end
+
   # Build backend. Homebrew's python vendors only pip and wheel, and the build
   # sandbox has no network, so an isolated build cannot fetch it. Same reason
   # `httpie` and 76 other core formulae vendor it.

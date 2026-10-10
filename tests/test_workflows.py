@@ -12,8 +12,9 @@ class WorkflowContractTests(unittest.TestCase):
         self.publish = (root / ".github/workflows/publish.yml").read_text()
 
     def test_required_macos_matrix_and_bottle_artifacts(self) -> None:
-        self.assertIn("macos-26", self.tests)
-        self.assertIn("macos-26-intel", self.tests)
+        # Intel macOS is Homebrew support tier 3 and gets no new bottles.
+        self.assertIn("os: [macos-26]", self.tests)
+        self.assertNotIn("intel", self.tests)
         self.assertIn("brew test-bot --only-formulae", self.tests)
         self.assertIn("bottles_${{ matrix.os }}", self.tests)
 

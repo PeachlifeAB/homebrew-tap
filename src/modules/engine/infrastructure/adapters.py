@@ -134,7 +134,7 @@ class GitHubAdapter:
         return stdout.strip() if code == 0 else None
 
     def create_release(
-        self, repository: str, tag: str, asset: Path, title: str
+        self, repository: str, tag: str, asset: Path, title: str, notes: str
     ) -> None:
         self.process.run(
             [
@@ -148,7 +148,7 @@ class GitHubAdapter:
                 "--title",
                 title,
                 "--notes",
-                title,
+                notes,
             ],
             cwd=asset.parent,
         )

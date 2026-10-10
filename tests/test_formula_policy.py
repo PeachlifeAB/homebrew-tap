@@ -5,7 +5,8 @@ import sys
 import unittest
 from pathlib import Path
 
-from modules.engine.domain.models import ProductManifest
+from modules.engine.domain.models import CaskManifest, ProductManifest
+from modules.engine.domain.platform_policy import intel_declarations
 
 # A formula's livecheck block, indented two spaces at the top level of the
 # class body. `{2}` rather than two literal spaces, which read as one.
@@ -175,13 +176,17 @@ class ManifestPolicyTests(unittest.TestCase):
         self.root = Path(__file__).resolve().parents[1]
         sys.path.insert(0, str(self.root / "src"))
 
-    def _manifests(self) -> list[ProductManifest]:
-        from modules.engine.infrastructure.manifest import load_manifest
+    def _products(self) -> list[ProductManifest | CaskManifest]:
+        from modules.engine.infrastructure.manifest import load_product
 
         return [
-            load_manifest(self.root, path.stem)
+            load_product(self.root, path.stem)
             for path in sorted((self.root / "release-products").glob("*.toml"))
         ]
+
+    def _manifests(self) -> list[ProductManifest]:
+        """The formula manifests: the rules below are formula rules."""
+        return [p for p in self._products() if isinstance(p, ProductManifest)]
 
     def test_every_formula_has_a_manifest(self) -> None:
         formulae = {p.stem for p in (self.root / "Formula").glob("*.rb")}
@@ -250,6 +255,60 @@ class ManifestPolicyTests(unittest.TestCase):
                     "manifest macos_only disagrees with the formula",
                 )
 
+    def test_no_formula_installs_on_intel_macos(self) -> None:
+        """Intel macOS is Homebrew support tier 3 and gets no new bottles. A
+        macOS-only formula limits itself with a plain `depends_on arch:`; one
+        that also runs on Linux limits only its macOS side, so Linux stays."""
+        plain = "  depends_on arch: :arm64\n"
+        macos_side = "  on_macos do\n    depends_on arch: :arm64\n  end\n"
+        for manifest in self._manifests():
+            with self.subTest(product=manifest.name):
+                content = (self.root / f"Formula/{manifest.formula}.rb").read_text()
+                self.assertIn(
+                    plain if manifest.macos_only else macos_side,
+                    content,
+                    "formula does not exclude Intel macOS",
+                )
+
+    def test_no_product_declares_intel_macos_support(self) -> None:
+        """A product's own platform constraint narrows the supported set and
+        never widens it: no formula or cask may declare Intel support, whatever
+        arm64 limit it also carries. Held for the cask like any formula."""
+        sources = {
+            product.name: (
+                self.root
+                / (
+                    product.path
+                    if isinstance(product, CaskManifest)
+                    else f"Formula/{product.formula}.rb"
+                )
+            ).read_text()
+            for product in self._products()
+        }
+        for name, source in sources.items():
+            with self.subTest(product=name):
+                self.assertEqual(
+                    intel_declarations(source), [], "product declares Intel support"
+                )
+
+    def test_intel_declarations_names_every_form_homebrew_offers(self) -> None:
+        cases = {
+            "depends_on arch: :x86_64\n": ["depends_on arch: :x86_64"],
+            "depends_on arch: :intel\n": ["depends_on arch: :intel"],
+            "depends_on arch: [:x86_64]\n": ["depends_on arch: [:x86_64]"],
+            "depends_on arch: [:arm64, :intel]\n": [
+                "depends_on arch: [:arm64, :intel]"
+            ],
+            "depends_on arch: [:arm64]\n": [],
+            "  on_intel do\n    depends_on 'x'\n  end\n": ["on_intel"],
+            "if Hardware::CPU.intel?\n  x\nend\n": ["Hardware::CPU.intel?"],
+            "depends_on arch: :arm64\n": [],
+            "on_macos do\n  depends_on arch: :arm64\nend\n": [],
+        }
+        for source, expected in cases.items():
+            with self.subTest(source=source):
+                self.assertEqual(intel_declarations(source), expected)
+
     def test_no_formula_hand_authors_its_bottle_block(self) -> None:
         """The bottle block is output, not source. `update_formula` deletes it
         on every release (`_BOTTLE_BLOCK.sub`) and `brew pr-pull` regenerates
@@ -280,27 +339,26 @@ class ManifestPolicyTests(unittest.TestCase):
                         "pr-pull writes, not an interpolation or a lookup",
                     )
 
-    def test_the_cask_is_exempt_from_the_manifest_rules(self) -> None:
-        """`Casks/hyprspace.rb` is generated in the hyprspace repository and
-        released by it, so the engine never touches it and it carries no
-        manifest. Today that exemption holds only because nobody has written
-        one; this states it, so adding `release-products/hyprspace.toml` fails
-        here rather than silently pulling a cask into the formula rules.
+    def test_every_cask_has_a_manifest_of_its_own_kind(self) -> None:
+        """A cask used to carry no manifest, so no check could see it. It has one
+        now, of kind `cask`, and is held to the cask rules; the formula rules in
+        this class iterate formula manifests only.
 
-        The rules would be wrong for it. `macos_only` is checked against
+        They would be wrong for it. `macos_only` is checked against
         `depends_on :macos`, a formula spelling: a cask is macOS-only by
         definition, and its DSL takes `depends_on macos:` only as a version
         constraint (`cask/dsl/depends_on.rb:110`), never the bare symbol.
         """
-        self.assertTrue(
-            (self.root / "Casks/hyprspace.rb").is_file(),
-            "the cask this exemption is about is gone; delete this test with it",
+        casks = [p for p in self._products() if isinstance(p, CaskManifest)]
+        self.assertEqual(
+            {p.stem for p in (self.root / "Casks").glob("*.rb")},
+            {cask.cask for cask in casks},
+            "a shipped cask with no manifest cannot be checked before it is committed",
         )
-        self.assertNotIn(
-            "hyprspace",
-            {m.name for m in self._manifests()},
-            "the cask is generated and released upstream, so the engine's "
-            "manifest rules cannot apply to it",
+        self.assertEqual(
+            {cask.name for cask in casks} & {m.name for m in self._manifests()},
+            set(),
+            "a cask must not be pulled into the formula rules",
         )
 
     def test_every_formula_declares_a_prefix_anchored_livecheck(self) -> None:
