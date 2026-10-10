@@ -13,6 +13,11 @@ class Lgtvctrl < Formula
     regex(/^lgtvctrl-v?(\d+(?:\.\d+)+)$/i)
   end
 
+  bottle do
+    root_url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/lgtvctrl-0.1.2"
+    sha256 cellar: :any_skip_relocation, arm64_tahoe: "1e6eae1556b4ba80a8ac781b10543643fb1b7b27e15276cab5460b209611421f"
+  end
+
   depends_on "openssl@3"
   depends_on "python@3.14"
 
