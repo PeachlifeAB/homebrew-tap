@@ -7,7 +7,11 @@ from collections.abc import Callable
 from pathlib import Path
 
 from modules.engine.application.ports import ProcessPort
-from modules.engine.application.tap import TapRelease, source_url_pattern
+from modules.engine.application.tap import (
+    TAP_PYTHON_FILE,
+    TapRelease,
+    source_url_pattern,
+)
 from modules.engine.domain.models import Handoff, ProductManifest, ReleaseError
 from modules.engine.infrastructure.manifest import load_manifest, load_product
 
@@ -122,6 +126,59 @@ class TapFormulaTests(unittest.TestCase):
         self.assertIn(handoff.source_sha256, content)
         self.assertNotIn("bottle do", content)
         self.assertIn(f'  sha256 "{handoff.source_sha256}"\n\n  test do\n', content)
+
+    def test_a_release_moves_the_formula_to_the_tap_python(self) -> None:
+        """The release PR rebuilds the bottle, so it is where a formula moves to
+        the Python the tap ships and tests on; changing it anywhere else leaves
+        a bottle built on the old one."""
+        source = b"source"
+        commit = "a" * 40
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            canonical = Path(__file__).resolve().parents[1]
+            (root / "release-products").mkdir()
+            (root / "release-products" / "sive.toml").write_text(
+                (canonical / "release-products" / "sive.toml").read_text()
+            )
+            (root / TAP_PYTHON_FILE).write_text("3.14\n")
+            (root / "Formula").mkdir()
+            formula = root / "Formula" / "sive.rb"
+            formula.write_text(
+                "class Sive < Formula\n"
+                '  url "https://github.com/PeachlifeAB/homebrew-tap/old.tar.gz"\n'
+                f'  sha256 "{"0" * 64}"\n\n'
+                '  depends_on "python@3.13"\n\n'
+                "  def install\n"
+                '    venv = virtualenv_create(libexec, "python3.13")\n'
+                "  end\n\n"
+                "  test do\n"
+                '    assert_equal "sive #{version}", '
+                'shell_output("#{bin}/sive --version").strip\n'
+                "  end\nend\n"
+            )
+            manifest = load_manifest(root, "sive")
+            handoff = Handoff(
+                1,
+                "sive",
+                manifest.repository,
+                "0.1.8",
+                manifest.tag("0.1.8"),
+                commit,
+                manifest.asset_url("0.1.8"),
+                hashlib.sha256(source).hexdigest(),
+            )
+            TapRelease(
+                root,
+                manifest,
+                FakeProcess(source),
+                FakeGit(),
+                FakeGitHub(commit),
+            ).update_formula(handoff)
+            content = formula.read_text()
+
+        self.assertIn('depends_on "python@3.14"', content)
+        self.assertIn('virtualenv_create(libexec, "python3.14")', content)
+        self.assertNotIn("3.13", content)
 
     def test_post_verify_uses_executable_as_version_label(self) -> None:
         class VersionProcess(FakeProcess):
@@ -252,6 +309,7 @@ class TapFormulaTests(unittest.TestCase):
                     (root / "release-products").mkdir()
                     (root / "release-products" / path.name).write_text(path.read_text())
                     (root / "Formula").mkdir()
+                    (root / TAP_PYTHON_FILE).write_text("3.14\n")
                     shipped = canonical / f"Formula/{manifest.formula}.rb"
                     content = shipped.read_text()
                     self.assertRegex(content, source_url_pattern())
@@ -274,6 +332,9 @@ class TapFormulaTests(unittest.TestCase):
                         FakeGitHub("a" * 40),
                     )
                     release.update_formula(handoff)
+                    released = (root / f"Formula/{manifest.formula}.rb").read_text()
+                    self.assertIn('depends_on "python@3.14"', released)
+                    self.assertIn('virtualenv_create(libexec, "python3.14")', released)
 
     def test_rejects_mismatched_product(self) -> None:
         root = Path(__file__).resolve().parents[1]

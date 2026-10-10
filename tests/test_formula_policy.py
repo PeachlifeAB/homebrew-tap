@@ -7,6 +7,7 @@ import sys
 import unittest
 from pathlib import Path
 
+from modules.engine.application.tap import TAP_PYTHON_FILE
 from modules.engine.domain.models import CaskManifest, ProductManifest
 from modules.engine.domain.platform_policy import intel_declarations
 
@@ -15,15 +16,6 @@ from modules.engine.domain.platform_policy import intel_declarations
 _LIVECHECK_BLOCK = re.compile(
     r"^ {2}livecheck do\n(.*?)^ {2}end$", re.DOTALL | re.MULTILINE
 )
-
-# The one definition of the Python the tap ships and tests on.
-TAP_PYTHON_FILE = ".python-version"
-
-# Formulae whose published bottle was built on an older Python. Each entry goes
-# when homebrew-tap-pvg.2 rebuilds that bottle on the tap Python; a formula
-# moved without its rebuild would pour a venv whose Python is no longer a
-# dependency.
-PYTHON_MIGRATION_PENDING = {"bgtail": "3.13", "lgtvctrl": "3.13"}
 
 
 class FormulaPolicyTests(unittest.TestCase):
@@ -306,25 +298,37 @@ class ManifestPolicyTests(unittest.TestCase):
         ).stdout.strip()
 
     def test_every_formula_builds_on_the_tap_python(self) -> None:
-        """The tap ships on the Python it tests on, `.python-version`. A formula
-        that depends on a homebrew-core Python library must build its venv on a
-        Python that library was built for: `cryptography` built for 3.14 is
-        invisible to a 3.13 venv, and only the formula test sees it."""
+        """The tap ships on the Python it tests on, `.python-version`, and each
+        release moves a formula to it. Until its next release a formula may stay
+        on the Python its current bottle was built with, and nothing else: a
+        homebrew-core library such as `cryptography` built for 3.14 is invisible
+        to a 3.13 venv, and only the formula test sees it."""
         tap_python = (self.root / TAP_PYTHON_FILE).read_text().strip()
+        python = re.compile(r'depends_on "python@(3\.\d+)"')
         for manifest in self._manifests():
-            expected = PYTHON_MIGRATION_PENDING.get(manifest.formula, tap_python)
-            with self.subTest(product=manifest.name, python=expected):
-                content = (self.root / f"Formula/{manifest.formula}.rb").read_text()
+            path = f"Formula/{manifest.formula}.rb"
+            content = (self.root / path).read_text()
+            declared = python.search(content)
+            assert declared, f"{path} names no python@"
+            ships_on = declared.group(1)
+            with self.subTest(product=manifest.name, python=ships_on):
                 self.assertIn(
-                    f'depends_on "python@{expected}"',
+                    f'virtualenv_create(libexec, "python{ships_on}")',
                     content,
-                    f"formula must depend on python@{expected}; a migrated formula "
-                    "leaves PYTHON_MIGRATION_PENDING",
+                    f"{path} builds its venv on another Python than it depends on",
                 )
-                self.assertIn(
-                    f'virtualenv_create(libexec, "python{expected}")',
-                    content,
-                    f"formula must build its venv on python{expected}",
+                if ships_on == tap_python:
+                    continue
+                bottle_commit = self._git(
+                    "log", "-1", "--format=%H", "-G", "sha256 cellar:", "--", path
+                )
+                built_on = python.search(self._git("show", f"{bottle_commit}:{path}"))
+                self.assertTrue(
+                    "bottle do" in content
+                    and built_on is not None
+                    and built_on.group(1) == ships_on,
+                    f"{path} is on python@{ships_on}, neither the tap Python "
+                    f"({tap_python}) nor the Python of its current bottle",
                 )
 
     def test_no_formula_installs_on_intel_macos(self) -> None:

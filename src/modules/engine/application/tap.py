@@ -14,12 +14,16 @@ PUBLISH_WORKFLOW = "publish.yml"
 # the bottles `brew pr-pull` publishes, as artifacts named with this prefix.
 TEST_WORKFLOW = "tests.yml"
 BOTTLE_ARTIFACT_PREFIX = "bottles_"
+# The one definition of the Python the tap ships and tests on.
+TAP_PYTHON_FILE = ".python-version"
 
 CHECK_DISCOVERY_ATTEMPTS = 60
 PUBLISH_RUN_DISCOVERY_ATTEMPTS = 30
 
 _TOP_LEVEL_SHA = re.compile(r'^ {2}sha256 "[0-9a-f]{64}"$', re.MULTILINE)
 _BOTTLE_BLOCK = re.compile(r"\n {2}bottle do\n.*?\n {2}end\n", re.DOTALL)
+_PYTHON_DEPENDENCY = re.compile(r'depends_on "python@3\.\d+"')
+_VENV_PYTHON = re.compile(r'virtualenv_create\(libexec, "python3\.\d+"\)')
 
 
 def version_assertion_pattern(executable: str) -> re.Pattern[str]:
@@ -168,6 +172,11 @@ class TapRelease:
             f'  sha256 "{handoff.source_sha256}"', content, count=1
         )
         content = _BOTTLE_BLOCK.sub("", content, count=1)
+        tap_python = self.tap_root / TAP_PYTHON_FILE
+        if tap_python.is_file():
+            # The release PR rebuilds the bottle, so it is where a formula moves
+            # to the Python the tap ships and tests on.
+            content = self._on_tap_python(content, tap_python.read_text().strip())
         if url_count != 1 or sha_count != 1:
             raise ReleaseError(
                 f"formula update expected one URL/SHA, "
@@ -178,6 +187,21 @@ class TapRelease:
                 f"formula test is not version-derived: {self.formula_path}"
             )
         self.formula_path.write_text(content, encoding="utf-8")
+
+    def _on_tap_python(self, content: str, python: str) -> str:
+        content, depends = _PYTHON_DEPENDENCY.subn(
+            f'depends_on "python@{python}"', content
+        )
+        content, venvs = _VENV_PYTHON.subn(
+            f'virtualenv_create(libexec, "python{python}")', content
+        )
+        if depends != 1 or venvs != 1:
+            raise ReleaseError(
+                f"{self.formula_path.name} must name its Python once in "
+                f"depends_on and once in virtualenv_create; found {depends} and "
+                f"{venvs}"
+            )
+        return content
 
     def create_formula_pull_request(
         self, handoff: Handoff, *, dry_run: bool
