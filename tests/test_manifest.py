@@ -103,6 +103,19 @@ class ManifestTests(unittest.TestCase):
             with self.assertRaisesRegex(ReleaseError, "mutable state"):
                 load_manifest(root, "sive")
 
+    def test_a_release_watches_every_repository_behind_every_product(self) -> None:
+        """A Dependabot update in any of them blocks a release of any product."""
+        from modules.engine.infrastructure.manifest import owned_repositories
+
+        self.assertEqual(
+            owned_repositories(self.tap_root),
+            (
+                "PeachlifeAB/homebrew-tap",
+                "PeachlifeAB/hyprspace-core",
+                "PeachlifeAB/hyprspace-releases",
+            ),
+        )
+
     def test_handoff_round_trip(self) -> None:
         handoff = Handoff(
             1,

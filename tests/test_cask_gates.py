@@ -68,6 +68,9 @@ class CaskTapCase(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name) / "tap"
         origin = Path(tmp.name) / "origin.git"
+        self.origin = origin
+        # Another repository the tap owns, such as the cask's source.
+        self.source = Path(tmp.name) / "source.git"
         self.git = GitAdapter(SubprocessAdapter())
         self.root.mkdir()
         origin.mkdir()
@@ -85,6 +88,9 @@ class CaskTapCase(unittest.TestCase):
         self.git.run(["commit", "-q", "-m", "hyprspace: v0.4.0"], cwd=self.root)
         self.git.run(["remote", "add", "origin", str(origin)], cwd=self.root)
         self.git.run(["push", "-q", "-u", "origin", "main"], cwd=self.root)
+        self.source.mkdir()
+        self.git.run(["init", "-q", "--bare", "-b", "main"], cwd=self.source)
+        self.git.run(["push", "-q", str(self.source), "main"], cwd=self.root)
 
     def _announcement(self, version: str) -> str:
         return f"- hyprspace {version}: {self.manifest.release_notes_url(version)}"
@@ -105,7 +111,11 @@ class CaskTapCase(unittest.TestCase):
 
     def _release(self, process: FakeProcess | None = None) -> CaskRelease:
         return CaskRelease(
-            self.manifest, self.root, process or StyleProcess(), self.git
+            self.manifest,
+            self.root,
+            process or StyleProcess(),
+            self.git,
+            (str(self.origin), str(self.source)),
         )
 
     def _check(self, version: str, process: FakeProcess | None = None) -> list[str]:
@@ -118,6 +128,65 @@ class CaskTapCase(unittest.TestCase):
 
 
 class CaskGateTests(CaskTapCase):
+    def test_a_dependabot_branch_on_the_remote_stops_the_release_first(
+        self,
+    ) -> None:
+        self._bump("0.5.0")
+        self.git.run(
+            ["push", "-q", "origin", "HEAD:refs/heads/dependabot/uv/dev-1"],
+            cwd=self.root,
+        )
+        lines: list[str] = []
+
+        with self.assertRaisesRegex(
+            ReleaseError,
+            "no-dependabot-branches: Dependabot PR detected and must be handled "
+            f"before release: {self.origin} dependabot/uv/dev-1",
+        ):
+            self._release().check("0.5.0", report=lines.append)
+        self.assertEqual(
+            [line for line in lines if line.startswith("ok")],
+            [],
+            "a gate ran before the Dependabot check",
+        )
+
+    def test_a_dependabot_branch_on_another_owned_repository_stops_it_too(
+        self,
+    ) -> None:
+        """Every product's repositories are checked, whichever is released."""
+        self._bump("0.5.0")
+        self.git.run(
+            ["push", "-q", str(self.source), "HEAD:refs/heads/dependabot/npm/web-1"],
+            cwd=self.root,
+        )
+
+        with self.assertRaisesRegex(
+            ReleaseError, f"{self.source} dependabot/npm/web-1"
+        ):
+            self._check("0.5.0")
+
+    def test_no_dependabot_branch_anywhere_passes_the_check(self) -> None:
+        self._bump("0.5.0")
+
+        self.assertIn("ok   no-dependabot-branches (instant)", self._check("0.5.0"))
+
+    def test_the_check_sees_commits_pushed_since_the_last_fetch(self) -> None:
+        """A remote commit made elsewhere must stop the release even when no
+        fetch ran locally: the check fetches before it compares."""
+        self._bump("0.5.0")
+        other = self.root.parent / "other"
+        self.git.run(
+            ["clone", "-q", str(self.root.parent / "origin.git"), str(other)],
+            cwd=self.root.parent,
+        )
+        for key, value in (("user.name", "Test"), ("user.email", "t@example.com")):
+            self.git.run(["config", key, value], cwd=other)
+        self.git.run(["commit", "-q", "--allow-empty", "-m", "elsewhere"], cwd=other)
+        self.git.run(["push", "-q", "origin", "main"], cwd=other)
+
+        with self.assertRaisesRegex(ReleaseError, "synced-with-remote: .*1 behind"):
+            self._check("0.5.0")
+
     def test_a_bump_that_changes_only_the_cask_and_its_announcement_passes(
         self,
     ) -> None:

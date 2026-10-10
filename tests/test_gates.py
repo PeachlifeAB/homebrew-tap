@@ -36,8 +36,11 @@ def _state(
     ahead: int = 0,
     behind: int = 0,
     dirty: tuple[str, ...] = (),
+    dependabot_branches: tuple[str, ...] = (),
 ) -> RepositoryState:
-    return RepositoryState(branch, "a" * 40, tracking, ahead, behind, dirty)
+    return RepositoryState(
+        branch, "a" * 40, tracking, ahead, behind, dirty, dependabot_branches
+    )
 
 
 def _observation(
@@ -121,6 +124,12 @@ class StartGateTests(unittest.TestCase):
         cases = {
             "release branch must be main": _observation(
                 "sive", repository=_state(branch="feature")
+            ),
+            "Dependabot PR detected and must be handled before release": (
+                _observation(
+                    "sive",
+                    repository=_state(dependabot_branches=("dependabot/uv/dev-1",)),
+                )
             ),
             "producer worktree is dirty": _observation(
                 "sive", repository=_state(dirty=(" M AGENTS.md",))
@@ -341,6 +350,13 @@ class EveryProductShareOneLadderTests(unittest.TestCase):
         self.assertEqual(ladders["lgtvctrl"], ladders["sive"])
         costs = [cost for _, cost in ladders["sive"]]
         self.assertEqual(costs, sorted(costs), "ladder is not cheapest first")
+
+    def test_an_open_dependabot_update_is_the_first_thing_a_release_checks(
+        self,
+    ) -> None:
+        first = min(formula_gates("sive"), key=lambda g: g.cost)
+
+        self.assertEqual(first.name, "no-dependabot-branches")
 
 
 if __name__ == "__main__":

@@ -11,7 +11,10 @@ from ..domain.models import (
     ReleaseObservation,
     RepositoryState,
 )
-from .ports import GitHubPort, GitPort
+from .ports import GitPort, ReleasePorts
+
+# Every branch Dependabot opens a pull request from starts with this.
+DEPENDABOT_PREFIX = "dependabot/"
 
 _LOCK_PACKAGE = re.compile(
     r'\[\[package\]\]\nname = "(?P<name>[^"]+)"\nversion = "(?P<version>[^"]+)"'
@@ -81,9 +84,32 @@ def changed_paths(porcelain_lines: tuple[str, ...]) -> list[str]:
     return paths
 
 
-def repository_state(git: GitPort, project_root: Path) -> RepositoryState:
+def dependabot_branches(
+    git: GitPort, project_root: Path, remotes: tuple[str, ...]
+) -> tuple[str, ...]:
+    """Dependabot's branches on every remote the tap owns, as `<remote> <branch>`.
+    Asked of each remote directly, so a merged branch that lingers in local
+    tracking refs never blocks, and a repository without a checkout is seen."""
+    found: list[str] = []
+    for remote in remotes:
+        listing = git.output(
+            ["ls-remote", "--heads", remote, f"{DEPENDABOT_PREFIX}*"],
+            cwd=project_root,
+        )
+        found.extend(
+            f"{remote} {line.split()[1].removeprefix('refs/heads/')}"
+            for line in listing.splitlines()
+            if line.strip()
+        )
+    return tuple(found)
+
+
+def repository_state(
+    git: GitPort, project_root: Path, watched_remotes: tuple[str, ...] = ()
+) -> RepositoryState:
     """Where the checkout stands against its upstream: the state every release
-    of any product, formula or cask, is checked from."""
+    of any product, formula or cask, is checked from. It fetches the upstream
+    first, since tracking refs are only as current as the last fetch."""
     branch = git.output(["rev-parse", "--abbrev-ref", "HEAD"], cwd=project_root)
     head = git.output(["rev-parse", "HEAD"], cwd=project_root)
     dirty = tuple(
@@ -91,10 +117,13 @@ def repository_state(git: GitPort, project_root: Path) -> RepositoryState:
         for line in git.output(["status", "--porcelain"], cwd=project_root).splitlines()
         if line
     )
+    dependabot = dependabot_branches(git, project_root, watched_remotes)
     try:
         tracking = git.output(
             ["rev-parse", "--abbrev-ref", "@{upstream}"], cwd=project_root
         )
+        remote = tracking.split("/", 1)[0]
+        git.run(["fetch", "--quiet", "--prune", remote], cwd=project_root)
         ahead, behind = (
             int(value)
             for value in git.output(
@@ -113,16 +142,18 @@ def repository_state(git: GitPort, project_root: Path) -> RepositoryState:
         ahead=ahead,
         behind=behind,
         dirty=dirty,
+        dependabot_branches=dependabot,
     )
 
 
 def observe_repository(
     manifest: ProductManifest,
     project_root: Path,
-    git: GitPort,
-    github: GitHubPort,
+    ports: ReleasePorts,
     version: str,
+    watched_remotes: tuple[str, ...] = (),
 ) -> ReleaseObservation:
+    git, github = ports.git, ports.github
     manifest.validate_version(version)
     tag = manifest.tag(version)
     try:
@@ -134,7 +165,7 @@ def observe_repository(
 
     return ReleaseObservation(
         product=manifest,
-        repository=repository_state(git, project_root),
+        repository=repository_state(git, project_root, watched_remotes),
         declared_version=project_version(project_root, manifest.package),
         locked_version=locked_version(project_root, manifest.package),
         local_tag_commit=local_tag_commit,

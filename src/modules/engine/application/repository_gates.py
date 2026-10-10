@@ -63,6 +63,17 @@ def _require_clean_worktree(state: RepositoryState, reviewed_notes: str) -> None
         raise ReleaseError("producer worktree is dirty:\n" + "\n".join(others))
 
 
+def _require_no_dependabot_branches(state: RepositoryState) -> None:
+    """An open dependency update is decided before a release, so a release
+    never ships on dependencies a pending pull request already replaces."""
+    if state.dependabot_branches:
+        raise ReleaseError(
+            "Dependabot PR detected and must be handled before release: "
+            + ", ".join(state.dependabot_branches)
+            + " (merge its PR when green; when red, get approval to resolve it)"
+        )
+
+
 def _require_tracking_branch(state: RepositoryState) -> None:
     if not state.tracking:
         raise ReleaseError("producer main has no tracking branch")
@@ -95,6 +106,7 @@ def state_gates(state: RepositoryState) -> tuple[Gate, ...]:
     """Where the checkout stands against its upstream. Formula and cask releases
     both start from the same three checks, so they share this one definition."""
     checks = (
+        ("no-dependabot-branches", partial(_require_no_dependabot_branches, state)),
         ("release-branch", partial(_require_release_branch, state)),
         ("tracking-branch", partial(_require_tracking_branch, state)),
         ("synced-with-remote", partial(_require_synced, state)),

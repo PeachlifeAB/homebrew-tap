@@ -27,7 +27,7 @@ _FORMULA_KEYS = _COMMON_KEYS | {
     "smoke_args",
     "macos_only",
 }
-_CASK_KEYS = _COMMON_KEYS | {"cask", "release_notes_template"}
+_CASK_KEYS = _COMMON_KEYS | {"source_repository", "cask", "release_notes_template"}
 _KEYS_BY_KIND = {ProductKind.FORMULA: _FORMULA_KEYS, ProductKind.CASK: _CASK_KEYS}
 _MUTABLE_KEYS = {
     "version",
@@ -113,6 +113,7 @@ def _cask(data: dict[str, Any]) -> CaskManifest:
         schema_version=data["schema_version"],
         name=data["name"],
         repository=data["repository"],
+        source_repository=data["source_repository"],
         cask=data["cask"],
         release_notes_template=data["release_notes_template"],
     )
@@ -126,6 +127,21 @@ def load_product(tap_root: Path, product: str) -> Product:
     if data["schema_version"] != 1:
         raise ReleaseError(f"unsupported manifest schema: {data['schema_version']}")
     return _formula(data) if kind is ProductKind.FORMULA else _cask(data)
+
+
+def owned_repositories(tap_root: Path) -> tuple[str, ...]:
+    """Every GitHub repository behind a product the tap ships: where each is
+    released from and, for a cask, where it is built."""
+    products = [
+        load_product(tap_root, path.stem)
+        for path in sorted((tap_root / "release-products").glob("*.toml"))
+    ]
+    repositories = {product.repository for product in products} | {
+        product.source_repository
+        for product in products
+        if isinstance(product, CaskManifest)
+    }
+    return tuple(sorted(repositories))
 
 
 def load_manifest(tap_root: Path, product: str) -> ProductManifest:

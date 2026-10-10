@@ -2,5 +2,6 @@ schema_version = 1
 kind = "cask"
 name = "hyprspace"
 repository = "PeachlifeAB/hyprspace-releases"
+source_repository = "PeachlifeAB/hyprspace-core"
 cask = "hyprspace"
 release_notes_template = "https://github.com/PeachlifeAB/hyprspace-releases/releases/tag/v{version}"

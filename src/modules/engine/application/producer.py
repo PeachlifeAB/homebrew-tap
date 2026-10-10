@@ -43,21 +43,22 @@ class ProducerRelease:
         manifest: ProductManifest,
         project_root: Path,
         ports: ReleasePorts,
+        watched_remotes: tuple[str, ...] = (),
     ) -> None:
         self.manifest = manifest
         self.project_root = project_root.resolve()
+        self.ports = ports
         self.process = ports.process
         self.git = ports.git
         self.github = ports.github
         self.hasher = ports.hasher
+        self.watched_remotes = watched_remotes
+        """Every remote the tap owns; a Dependabot branch on any of them stops
+        the release."""
 
     def observe(self, version: str) -> ReleaseObservation:
         return observe_repository(
-            self.manifest,
-            self.project_root,
-            self.git,
-            self.github,
-            version,
+            self.manifest, self.project_root, self.ports, version, self.watched_remotes
         )
 
     def start_gates(

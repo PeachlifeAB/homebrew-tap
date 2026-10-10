@@ -29,7 +29,12 @@ EMPTY_ANNOUNCEMENTS = f"# Changelog\n\n{ANNOUNCEMENT_HEADING}\n"
 
 # Formula gates a cask runs unchanged, by name.
 CASK_SHARED_GATES = frozenset(
-    {"release-branch", "tracking-branch", "synced-with-remote"}
+    {
+        "no-dependabot-branches",
+        "release-branch",
+        "tracking-branch",
+        "synced-with-remote",
+    }
 )
 
 # Formula gates that do not apply to a cask, and why. Reported by every check.
@@ -67,11 +72,13 @@ class CaskRelease:
         tap_root: Path,
         process: ProcessPort,
         git: GitPort,
+        watched_remotes: tuple[str, ...] = (),
     ) -> None:
         self.manifest = manifest
         self.tap_root = tap_root.resolve()
         self.process = process
         self.git = git
+        self.watched_remotes = watched_remotes
 
     @property
     def cask_file(self) -> Path:
@@ -79,7 +86,7 @@ class CaskRelease:
 
     def gates(self, version: str) -> tuple[Gate, ...]:
         """The checks a cask bump runs, cheapest first."""
-        state = repository_state(self.git, self.tap_root)
+        state = repository_state(self.git, self.tap_root, self.watched_remotes)
         own: tuple[tuple[str, GateCost, Callable[[], None]], ...] = (
             (
                 "only-the-cask-changed",

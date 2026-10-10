@@ -81,6 +81,9 @@ class CaskManifest:
     repository: str
     """The upstream repository that releases the app."""
 
+    source_repository: str
+    """The repository the app and its generated cask are built from."""
+
     cask: str
     """The cask token: the file is `Casks/<cask>.rb`."""
 
@@ -131,6 +134,8 @@ class RepositoryState:
     ahead: int
     behind: int
     dirty: tuple[str, ...]
+    dependabot_branches: tuple[str, ...] = ()
+    """Dependabot's branches on the upstream remote, after a pruning fetch."""
 
 
 @dataclass(frozen=True)

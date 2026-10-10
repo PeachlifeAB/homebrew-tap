@@ -20,10 +20,21 @@ from modules.engine.infrastructure.adapters import (
     Sha256Hasher,
     SubprocessAdapter,
 )
-from modules.engine.infrastructure.manifest import load_manifest
+from modules.engine.infrastructure.manifest import load_manifest, owned_repositories
 
 # app/ -> src/ -> repository root
 TAP_ROOT = Path(__file__).resolve().parents[2]
+# SSH reaches private repositories too, with the credentials git already uses.
+GITHUB_SSH_REMOTE = "git@github.com:{repository}.git"
+
+
+def watched_remotes() -> tuple[str, ...]:
+    """The remotes a release checks for open Dependabot branches: every
+    repository behind every product, whichever product is being released."""
+    return tuple(
+        GITHUB_SSH_REMOTE.format(repository=repository)
+        for repository in owned_repositories(TAP_ROOT)
+    )
 
 
 class Components(NamedTuple):
@@ -53,6 +64,7 @@ def build(product: str, project_root: Path) -> Components:
             manifest,
             project_root.resolve(),
             ReleasePorts(process=process, git=git, github=github, hasher=hasher),
+            watched_remotes(),
         ),
         tap=TapRelease(TAP_ROOT, manifest, process, git, github),
     )
@@ -61,4 +73,6 @@ def build(product: str, project_root: Path) -> Components:
 def build_cask(manifest: CaskManifest) -> CaskRelease:
     """Construct the use case that checks a generated cask bump."""
     process = SubprocessAdapter()
-    return CaskRelease(manifest, TAP_ROOT, process, GitAdapter(process))
+    return CaskRelease(
+        manifest, TAP_ROOT, process, GitAdapter(process), watched_remotes()
+    )
