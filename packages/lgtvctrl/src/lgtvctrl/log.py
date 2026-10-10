@@ -5,6 +5,13 @@ from logging.handlers import RotatingFileHandler
 from lgtvctrl.config import CONFIG_DIR
 
 LOG_FILE = CONFIG_DIR / "lgtvctrl.log"
+APP_LOGGER = "lgtvctrl"
+
+
+def _for_the_terminal(record: logging.LogRecord) -> bool:
+    """A command's own results from INFO up; other libraries only from WARNING."""
+    own = record.name == APP_LOGGER or record.name.startswith(f"{APP_LOGGER}.")
+    return record.levelno >= (logging.INFO if own else logging.WARNING)
 
 
 def setup_logging() -> str:
@@ -26,8 +33,8 @@ def setup_logging() -> str:
     file_handler.setFormatter(formatter)
 
     stderr_handler = logging.StreamHandler()
-    stderr_handler.setLevel(logging.DEBUG)
-    stderr_handler.setFormatter(formatter)
+    stderr_handler.addFilter(_for_the_terminal)
+    stderr_handler.setFormatter(logging.Formatter("%(message)s"))
 
     logging.basicConfig(
         level=logging.DEBUG,
