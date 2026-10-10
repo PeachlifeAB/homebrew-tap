@@ -329,5 +329,83 @@ class WaitForChecksTests(unittest.TestCase):
         )
 
 
+class BottleBeforePublishTests(unittest.TestCase):
+    """brew test-bot marks a failing formula SKIPPED and still exits 0, so green
+    checks do not mean a bottle exists; publishing then fails at brew pr-pull."""
+
+    HEAD = "b" * 40
+
+    def _publish(self, artifact_names: str) -> list[list[str]]:
+        calls: list[list[str]] = []
+        head = self.HEAD
+
+        class PullRequestProcess(FakeProcess):
+            def run(
+                self,
+                args: list[str],
+                *,
+                cwd: Path,
+                capture: bool = False,
+                timeout_seconds: float | None = None,
+            ) -> str:
+                calls.append(args)
+                dispatched = any(
+                    call[:3] == ["gh", "workflow", "run"] for call in calls
+                )
+                replies = {
+                    ("gh", "pr", "view"): head,
+                    ("gh", "run", "list", "tests.yml"): '[{"databaseId": 7}]',
+                    ("gh", "api"): artifact_names,
+                    # The publish run: a new id appears once it is dispatched.
+                    ("gh", "run", "list"): (
+                        f'[{{"databaseId": {9 if dispatched else 8}}}]'
+                    ),
+                }
+                key = (*args[:3], *(["tests.yml"] if "tests.yml" in args else []))
+                return replies.get(key, replies.get(tuple(args[:2]), ""))
+
+            def try_run(self, args: list[str], *, cwd: Path) -> tuple[int, str]:
+                if args[:3] == ["gh", "run", "list"]:
+                    return 0, self.run(args, cwd=cwd)
+                return 0, '[{"name": "test-bot"}]'
+
+        class RecordingGit(FakeGit):
+            def run(self, args: list[str], *, cwd: Path) -> None:
+                calls.append(["git", *args])
+
+        root = Path(__file__).resolve().parents[1]
+        manifest = load_manifest(root, "sive")
+        TapRelease(
+            root,
+            manifest,
+            PullRequestProcess(b""),
+            RecordingGit(),
+            FakeGitHub("a" * 40),
+        ).wait_and_publish(11, head)
+        return calls
+
+    def test_a_pull_request_without_a_bottle_is_never_published(self) -> None:
+        with self.assertRaisesRegex(
+            ReleaseError, r"#11: tests.yml run 7 uploaded no bottles_\* artifact"
+        ):
+            self._publish("")
+
+    def test_nothing_is_dispatched_when_the_bottle_is_missing(self) -> None:
+        calls: list[list[str]] = []
+        try:
+            calls = self._publish("")
+        except ReleaseError:
+            pass
+        self.assertFalse(
+            any(call[:3] == ["gh", "workflow", "run"] for call in calls),
+            "publish.yml was dispatched without a bottle",
+        )
+
+    def test_a_pull_request_with_its_bottle_is_published(self) -> None:
+        calls = self._publish("bottles_macos-26")
+
+        self.assertTrue(any(call[:3] == ["gh", "workflow", "run"] for call in calls))
+
+
 if __name__ == "__main__":
     unittest.main()

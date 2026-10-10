@@ -10,6 +10,10 @@ from .gates import Gate, GateCost
 from .ports import GitHubPort, GitPort, ProcessPort
 
 PUBLISH_WORKFLOW = "publish.yml"
+# The workflow that runs `brew test-bot` on a formula pull request and uploads
+# the bottles `brew pr-pull` publishes, as artifacts named with this prefix.
+TEST_WORKFLOW = "tests.yml"
+BOTTLE_ARTIFACT_PREFIX = "bottles_"
 
 CHECK_DISCOVERY_ATTEMPTS = 60
 PUBLISH_RUN_DISCOVERY_ATTEMPTS = 30
@@ -261,6 +265,7 @@ class TapRelease:
             raise ReleaseError(
                 f"pull-request head changed: expected {head_sha}, got {current}"
             )
+        self._require_bottles(pull_request, head_sha)
         before = self._latest_publish_run()
         self.process.run(
             [
@@ -348,6 +353,55 @@ class TapRelease:
             ready=lambda code, out: code == 0 and bool(json.loads(out or "[]")),
             attempts=CHECK_DISCOVERY_ATTEMPTS,
         )
+
+    def _require_bottles(self, pull_request: int, head_sha: str) -> None:
+        """Green checks are not a bottle: `brew test-bot` marks a formula whose
+        test fails SKIPPED, uploads nothing and exits 0. Publishing then fails at
+        `brew pr-pull`, after the tag and release are already public."""
+        run_id = self._run_id(
+            self.process.run(
+                [
+                    "gh",
+                    "run",
+                    "list",
+                    "--repo",
+                    self.tap_repository,
+                    "--workflow",
+                    TEST_WORKFLOW,
+                    "--commit",
+                    head_sha,
+                    "--event",
+                    "pull_request",
+                    "--limit",
+                    "1",
+                    "--json",
+                    "databaseId",
+                ],
+                cwd=self.tap_root,
+                capture=True,
+            )
+        )
+        if not run_id:
+            raise ReleaseError(
+                f"pull request #{pull_request}: no {TEST_WORKFLOW} run for {head_sha}"
+            )
+        artifacts = self.process.run(
+            [
+                "gh",
+                "api",
+                f"repos/{self.tap_repository}/actions/runs/{run_id}/artifacts",
+                "--jq",
+                ".artifacts[].name",
+            ],
+            cwd=self.tap_root,
+            capture=True,
+        ).split()
+        if not any(name.startswith(BOTTLE_ARTIFACT_PREFIX) for name in artifacts):
+            raise ReleaseError(
+                f"pull request #{pull_request}: {TEST_WORKFLOW} run {run_id} uploaded "
+                f"no {BOTTLE_ARTIFACT_PREFIX}* artifact; brew test-bot skipped or "
+                "failed a formula, read its --only-formulae step"
+            )
 
     def _publish_run_query(self) -> list[str]:
         return [
