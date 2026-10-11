@@ -11,7 +11,7 @@ Tags are unprefixed (`0.1.0`); sibling target `sive` uses `v`-prefixed tags — 
 Principle: the formula pins an immutable artifact. Re-tagging changes the tarball hash and silently invalidates the pin, so tag once and treat a published tag as frozen.
 
 ## Release gating
-`homebrew-tap/bin/preflight <formula>` is the single gate. It reads live git state for both repos, compares the formula's pinned sha256 against the live artifact, and runs `brew style` / `brew audit --strict`.
+`bin/release --product <formula> ... release X.Y.Z --check` in homebrew-tap is the single gate. It reads live git state for both repos, compares the formula's pinned sha256 against the live artifact, and runs `brew style` / `brew audit --strict`.
 Run it immediately before every release; never release from remembered state.
 Principle: release defects here come from stale assumptions, not bad code. Observed state beats recalled state, so the gate re-reads everything each run rather than trusting prior output.
 

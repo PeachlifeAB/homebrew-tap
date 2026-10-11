@@ -200,8 +200,7 @@ validate-all = { sequence = ["validate"], help = "alias for validate (pre-push g
 
 # Repository scripts are grouped here without duplicating their argument parsers.
 
-# The preflight library files and Sive's mise hook are sourced helpers, not
-# standalone tasks.
+# Sive's mise hook is a sourced helper, not a standalone task.
 [tool.poe.groups.builds]
 heading = "Build artifacts"
 
@@ -225,9 +224,6 @@ heading = "Release lifecycle"
 cmd = "bin/release $POE_EXTRA_ARGS"
 help = "Run the release engine; pass its complete CLI as task arguments."
 
-[tool.poe.groups.release.tasks.release-preflight]
-cmd = "bin/preflight $POE_EXTRA_ARGS"
-help = "Run formula preflight; pass its arguments as task arguments."
 
 [tool.poe.groups.diagnostics]
 heading = "Repository diagnostics"

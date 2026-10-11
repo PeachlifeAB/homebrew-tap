@@ -5,7 +5,9 @@ import tempfile
 import unittest
 from collections.abc import Callable
 from pathlib import Path
+from unittest.mock import patch
 
+from modules.engine.application.gates import Gate, GateCost
 from modules.engine.application.ports import ProcessPort
 from modules.engine.application.tap import (
     TAP_PYTHON_FILE,
@@ -201,7 +203,8 @@ class TapFormulaTests(unittest.TestCase):
         release = TapRelease(
             root, manifest, VersionProcess(b""), FakeGit(), FakeGitHub("a" * 40)
         )
-        release.post_verify("0.1.1", root)
+        with patch.object(release, "live_gates", return_value=()):
+            release.post_verify("0.1.1")
 
     def _post_verify_commands(self, *, installed: bool) -> list[list[str]]:
         """Every command post-verify issues for sive on a machine where brew
@@ -238,7 +241,12 @@ class TapFormulaTests(unittest.TestCase):
             FakeGit(),
             FakeGitHub("a" * 40),
         )
-        release.post_verify("0.1.10", root)
+        live: list[str] = []
+        recorded = Gate("live", GateCost.INSTANT, lambda: live.append("ran"))
+        with patch.object(release, "live_gates", return_value=(recorded,)):
+            release.post_verify("0.1.10")
+        if live:
+            process.commands.append(["live-gates"])
         return process.commands
 
     def test_post_verify_installs_a_formula_brew_does_not_have(self) -> None:
@@ -246,6 +254,16 @@ class TapFormulaTests(unittest.TestCase):
 
         self.assertIn(["brew", "install", "peachlifeab/tap/sive"], commands)
         self.assertNotIn(["brew", "upgrade", "sive"], commands)
+
+    def test_post_verify_checks_the_live_release_without_bin_preflight(
+        self,
+    ) -> None:
+        """The live gates are the one owner of "is what users install
+        intact"; the bash preflight that duplicated them is gone."""
+        commands = self._post_verify_commands(installed=True)
+
+        self.assertIn(["live-gates"], commands)
+        self.assertFalse(any("preflight" in " ".join(c) for c in commands))
 
     def test_post_verify_upgrades_a_formula_brew_already_has(self) -> None:
         commands = self._post_verify_commands(installed=True)

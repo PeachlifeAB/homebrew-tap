@@ -6,6 +6,7 @@ here names a product except the parametrised tests that prove that.
 
 from __future__ import annotations
 
+import hashlib
 import io
 import tarfile
 import tempfile
@@ -18,6 +19,7 @@ from modules.engine.application.ports import ReleasePorts
 from modules.engine.application.producer import ProducerRelease
 from modules.engine.application.tap import TapRelease
 from modules.engine.domain.models import (
+    CommandFailed,
     ReleaseError,
     ReleaseObservation,
     RepositoryState,
@@ -48,6 +50,7 @@ def _observation(
     *,
     repository: RepositoryState | None = None,
     declared_version: str = "0.1.9",
+    locked_version: str | None = None,
     remote_tag_commit: str | None = None,
     github_release_exists: bool = False,
 ) -> ReleaseObservation:
@@ -55,7 +58,7 @@ def _observation(
         load_manifest(TAP_ROOT, product),
         repository or _state(),
         declared_version,
-        declared_version,
+        locked_version or declared_version,
         None,
         remote_tag_commit,
         github_release_exists,
@@ -139,6 +142,9 @@ class StartGateTests(unittest.TestCase):
                 "sive", repository=_state(ahead=1)
             ),
             "must exceed 0.1.10": _observation("sive", declared_version="0.1.10"),
+            "uv.lock pins sive 0.1.8 but pyproject.toml declares 0.1.9": _observation(
+                "sive", locked_version="0.1.8"
+            ),
             "release tag already exists": _observation(
                 "sive", remote_tag_commit="b" * 40
             ),
@@ -281,6 +287,111 @@ class TapGateTests(unittest.TestCase):
             run_gates(tap.release_gates(), report=lambda _: None)
 
 
+class BrewAuditGateTests(unittest.TestCase):
+    def test_brew_audit_problems_stop_the_release(self) -> None:
+        class AuditProblems(FakeProcess):
+            def try_run(self, args: list[str], *, cwd: Path) -> tuple[int, str]:
+                self.commands.append(args)
+                if args[:2] == ["brew", "audit"]:
+                    return 1, "sive: stable version should not decrease"
+                return 0, ""
+
+        tap = TapRelease(
+            TAP_ROOT,
+            load_manifest(TAP_ROOT, "sive"),
+            AuditProblems(),
+            FakeGit(),
+            FakeGitHub(),
+        )
+        with (
+            patch.object(tap.git, "output", return_value="", create=True),
+            self.assertRaisesRegex(
+                ReleaseError, r"(?s)brew-audit-clean: .*should not decrease"
+            ),
+        ):
+            run_gates(tap.release_gates(), report=lambda _: None)
+
+
+ARTIFACT = b"sive-0.1.10 sdist"
+LIVE_URL = (
+    "https://github.com/PeachlifeAB/homebrew-tap/releases/download/"
+    "sive-0.1.10/sive-0.1.10.tar.gz"
+)
+
+
+def _live_formula(*, sha: str, bottle_root: str | None) -> str:
+    bottle = (
+        f'  bottle do\n    root_url "{bottle_root}"\n'
+        '    sha256 cellar: :any_skip_relocation, arm64_tahoe: "abc"\n  end\n\n'
+        if bottle_root
+        else ""
+    )
+    return (
+        f'class Sive < Formula\n  url "{LIVE_URL}"\n  sha256 "{sha}"\n\n{bottle}end\n'
+    )
+
+
+class LiveGateTests(unittest.TestCase):
+    """What a user installs right now: the published artifact and the bottle."""
+
+    GOOD_SHA = hashlib.sha256(ARTIFACT).hexdigest()
+    GOOD_BOTTLE = (
+        "https://github.com/PeachlifeAB/homebrew-tap/releases/download/sive-0.1.10"
+    )
+
+    def _run(self, formula: str, download: bytes | None = ARTIFACT) -> None:
+        class Download(FakeProcess):
+            def read_bytes(self, args: list[str], *, cwd: Path) -> bytes:
+                self.commands.append(args)
+                if download is None:
+                    raise CommandFailed(" ".join(args))
+                return download
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "Formula").mkdir()
+            (root / "Formula" / "sive.rb").write_text(formula)
+            tap = TapRelease(
+                root,
+                load_manifest(TAP_ROOT, "sive"),
+                Download(),
+                FakeGit(),
+                FakeGitHub(),
+            )
+            run_gates(tap.live_gates(), report=lambda _: None)
+
+    def test_a_healthy_release_passes(self) -> None:
+        self._run(_live_formula(sha=self.GOOD_SHA, bottle_root=self.GOOD_BOTTLE))
+
+    def test_a_published_artifact_that_differs_from_the_pin_stops_it(self) -> None:
+        with self.assertRaisesRegex(ReleaseError, "live-artifact-matches: .*sha256"):
+            self._run(_live_formula(sha="0" * 64, bottle_root=self.GOOD_BOTTLE))
+
+    def test_an_unpublished_artifact_stops_it(self) -> None:
+        with self.assertRaisesRegex(ReleaseError, "live-artifact-matches: .*fetch"):
+            self._run(
+                _live_formula(sha=self.GOOD_SHA, bottle_root=self.GOOD_BOTTLE),
+                download=None,
+            )
+
+    def test_a_formula_without_a_bottle_stops_it(self) -> None:
+        with self.assertRaisesRegex(
+            ReleaseError, "bottle-matches-release: .*no bottle"
+        ):
+            self._run(_live_formula(sha=self.GOOD_SHA, bottle_root=None))
+
+    def test_a_bottle_from_another_release_stops_it(self) -> None:
+        with self.assertRaisesRegex(
+            ReleaseError, "bottle-matches-release: .*sive-0.1.9"
+        ):
+            self._run(
+                _live_formula(
+                    sha=self.GOOD_SHA,
+                    bottle_root=self.GOOD_BOTTLE.replace("0.1.10", "0.1.9"),
+                )
+            )
+
+
 def _sdist_bytes(version: str, *, extra: tarfile.TarInfo | None = None) -> bytes:
     buffer = io.BytesIO()
     with tarfile.open(fileobj=buffer, mode="w:gz") as archive:
@@ -349,7 +460,11 @@ def formula_gates(product: str) -> list[Gate]:
         producer = ProducerRelease(manifest, root, ports)
         tap = TapRelease(TAP_ROOT, manifest, ports.process, ports.git, ports.github)
         with patch.object(producer, "observe", return_value=_observation(product)):
-            return [*producer.release_gates("0.1.10"), *tap.release_gates()]
+            return [
+                *producer.release_gates("0.1.10"),
+                *tap.release_gates(),
+                *tap.live_gates(),
+            ]
 
 
 def formula_gate_names() -> set[str]:

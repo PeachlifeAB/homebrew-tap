@@ -142,7 +142,7 @@ def _resume(args: argparse.Namespace, c: Components) -> None:
             handoff, dry_run=False
         )
     tap.wait_and_publish(*pull_request)
-    tap.post_verify(args.version, producer.project_root)
+    tap.post_verify(args.version)
 
 
 def _observe(args: argparse.Namespace, c: Components) -> None:
@@ -184,7 +184,7 @@ def _publish(args: argparse.Namespace, c: Components) -> None:
 
 
 def _post_verify(args: argparse.Namespace, c: Components) -> None:
-    c.tap.post_verify(args.version, c.project_root)
+    c.tap.post_verify(args.version)
 
 
 def _release_dry_run(args: argparse.Namespace, c: Components) -> None:
@@ -200,7 +200,13 @@ def _release_dry_run(args: argparse.Namespace, c: Components) -> None:
 
 def _check(args: argparse.Namespace, c: Components) -> None:
     """Every gate, cheapest first, stopping at the first failure."""
-    run_gates((*c.producer.release_gates(args.version), *c.tap.release_gates()))
+    run_gates(
+        (
+            *c.producer.release_gates(args.version),
+            *c.tap.release_gates(),
+            *c.tap.live_gates(),
+        )
+    )
 
 
 def _release(args: argparse.Namespace, c: Components) -> None:
@@ -214,7 +220,7 @@ def _release(args: argparse.Namespace, c: Components) -> None:
     c.producer.prepare(args.version, dry_run=False)
     pull_request = _publish_prepared(args, c.producer, c.tap)
     c.tap.wait_and_publish(*pull_request)
-    c.tap.post_verify(args.version, c.project_root)
+    c.tap.post_verify(args.version)
 
 
 Handler = Callable[[argparse.Namespace, Components], None]

@@ -5,8 +5,8 @@ import json
 import re
 from pathlib import Path
 
-from ..domain.models import Handoff, ProductManifest, ReleaseError
-from .gates import Gate, GateCost
+from ..domain.models import CommandFailed, Handoff, ProductManifest, ReleaseError
+from .gates import Gate, GateCost, run_gates
 from .ports import GitHubPort, GitPort, ProcessPort
 
 PUBLISH_WORKFLOW = "publish.yml"
@@ -21,6 +21,7 @@ CHECK_DISCOVERY_ATTEMPTS = 60
 PUBLISH_RUN_DISCOVERY_ATTEMPTS = 30
 
 _TOP_LEVEL_SHA = re.compile(r'^ {2}sha256 "[0-9a-f]{64}"$', re.MULTILINE)
+_PINNED_SHA = re.compile(r'^ {2}sha256 "([0-9a-f]{64})"$', re.MULTILINE)
 _BOTTLE_BLOCK = re.compile(r"\n {2}bottle do\n.*?\n {2}end\n", re.DOTALL)
 _PYTHON_DEPENDENCY = re.compile(r'depends_on "python@3\.\d+"')
 _VENV_PYTHON = re.compile(r'virtualenv_create\(libexec, "python3\.\d+"\)')
@@ -110,11 +111,72 @@ class TapRelease:
             if code != 0:
                 raise ReleaseError(f"brew style reported offenses:\n{output.strip()}")
 
+        def brew_audit_clean() -> None:
+            # `brew audit` takes a formula name and reads the installed tap, so
+            # it checks what is published; brew-style-clean checks the working
+            # tree.
+            code, output = self.process.try_run(
+                ["brew", "audit", "--strict", self._tap_ref], cwd=self.tap_root
+            )
+            if code != 0:
+                raise ReleaseError(f"brew audit reported problems:\n{output.strip()}")
+
         return (
             Gate(
                 "publish-workflow-present", GateCost.SECONDS, publish_workflow_present
             ),
             Gate("brew-style-clean", GateCost.SECONDS, brew_style_clean),
+            Gate("brew-audit-clean", GateCost.SECONDS, brew_audit_clean),
+        )
+
+    @property
+    def _tap_ref(self) -> str:
+        return f"peachlifeab/tap/{self.manifest.formula}"
+
+    def live_gates(self) -> tuple[Gate, ...]:
+        """What a user installs now: the formula's published artifact matches
+        its pinned sha256, and its bottle belongs to the release it names."""
+        content = self.formula_path.read_text(encoding="utf-8")
+        url_match = re.search(r'^ {2}url "([^"]+)"', content, re.MULTILINE)
+        sha_match = _PINNED_SHA.search(content)
+        if not url_match or not sha_match:
+            raise ReleaseError(f"{self.formula_path.name} has no url and sha256")
+        url, pinned = url_match.group(1), sha_match.group(1)
+        release_tag = url.rsplit("/", 2)[-2]
+
+        def live_artifact_matches() -> None:
+            try:
+                artifact = self.process.read_bytes(
+                    ["curl", "--fail", "--silent", "--show-error", "--location", url],
+                    cwd=self.tap_root,
+                )
+            except CommandFailed as error:
+                raise ReleaseError(
+                    f"could not fetch {url}; the release asset may not be published"
+                ) from error
+            live = hashlib.sha256(artifact).hexdigest()
+            if live != pinned:
+                raise ReleaseError(
+                    f"sha256 mismatch: formula pins {pinned}, published is {live}"
+                )
+
+        def bottle_matches_release() -> None:
+            root = re.search(r'^ {4}root_url "([^"]+)"', content, re.MULTILINE)
+            if not _BOTTLE_BLOCK.search(content) or not root:
+                raise ReleaseError(
+                    f"no bottle in {self.formula_path.name}; users would build "
+                    "from source"
+                )
+            bottle_release = root.group(1).rsplit("/", 1)[-1]
+            if bottle_release != release_tag:
+                raise ReleaseError(
+                    f"bottle root_url points at {bottle_release}, the formula "
+                    f"installs {release_tag}"
+                )
+
+        return (
+            Gate("bottle-matches-release", GateCost.INSTANT, bottle_matches_release),
+            Gate("live-artifact-matches", GateCost.SECONDS, live_artifact_matches),
         )
 
     def validate_handoff(self, handoff: Handoff) -> None:
@@ -322,7 +384,7 @@ class TapRelease:
         self.git.run(["switch", "main"], cwd=self.tap_root)
         self.git.run(["pull", "--ff-only", "origin", "main"], cwd=self.tap_root)
 
-    def post_verify(self, version: str, project_root: Path) -> None:
+    def post_verify(self, version: str) -> None:
         tap_ref = f"peachlifeab/tap/{self.manifest.formula}"
         self.process.run(["brew", "update"], cwd=self.tap_root)
         # `brew upgrade` errors on a formula that was never installed (exit 1,
@@ -353,10 +415,7 @@ class TapRelease:
             [str(executable), *self.manifest.smoke_args], cwd=self.tap_root
         )
         self.process.run(["brew", "test", tap_ref], cwd=self.tap_root)
-        self.process.run(
-            [str(self.tap_root / "bin" / "preflight"), self.manifest.formula],
-            cwd=project_root,
-        )
+        run_gates(self.live_gates())
 
     def _wait_for_checks(self, pull_request: int) -> None:
         """Wait for the check suite to REGISTER; `gh pr checks --watch` then

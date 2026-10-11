@@ -92,6 +92,14 @@ def _require_version_increase(declared: str, version: str) -> None:
         raise ReleaseError(f"release version {version} must exceed {declared}")
 
 
+def _require_lock_matches(observation: ReleaseObservation, package: str) -> None:
+    if observation.locked_version != observation.declared_version:
+        raise ReleaseError(
+            f"uv.lock pins {package} {observation.locked_version} but pyproject.toml "
+            f"declares {observation.declared_version}; run 'uv lock' and commit"
+        )
+
+
 def _require_free_tag(observation: ReleaseObservation, tag: str) -> None:
     if observation.local_tag_commit or observation.remote_tag_commit:
         raise ReleaseError(f"release tag already exists: {tag}")
@@ -138,6 +146,10 @@ def start_gates(
         (
             "version-increases",
             partial(_require_version_increase, observation.declared_version, version),
+        ),
+        (
+            "lock-matches-version",
+            partial(_require_lock_matches, observation, manifest.package),
         ),
         ("tag-is-free", partial(_require_free_tag, observation, tag)),
         ("github-release-is-free", partial(_require_free_release, observation, tag)),

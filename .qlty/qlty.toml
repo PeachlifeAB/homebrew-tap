@@ -117,18 +117,9 @@ file_patterns = ["Formula/**", "Casks/**"]
 globs = [
   "*.sh",
   "*.bash",
-  "bin/preflight",
   "bin/repo-state",
   "bin/require-formulae-passed",
 ]
-
-# bin/lib/*.sh are sourced fragments, not standalone scripts. They are
-# intentionally shebang-less; bin/preflight sources them and already carries
-# `# shellcheck source=` directives.
-[[triage]]
-match.rules = ["shellcheck:2148"]
-match.file_patterns = ["bin/lib/**"]
-set.ignored = true
 
 # adapters.py is the outbound I/O boundary: running subprocesses is its entire
 # purpose, and every argv is built from typed domain models, never user input.

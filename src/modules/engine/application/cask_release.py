@@ -51,6 +51,10 @@ CASK_SKIPPED_GATES = {
     "brew-style-clean": "brew-style-cask checks the cask file",
     "sdist-builds-and-verifies": "a cask ships no source distribution",
     "quality-task": "a cask has no package tests",
+    "lock-matches-version": "a cask has no package or lockfile",
+    "brew-audit-clean": "brew-style-cask checks the cask; its upstream audits it",
+    "live-artifact-matches": "the tap pins no artifact of its own for a cask",
+    "bottle-matches-release": "a cask has no bottle",
 }
 
 _VERSION_LINE = re.compile(r'^\s*version\s+"([^"]+)"', re.MULTILINE)
