@@ -20,7 +20,7 @@ jobs:
   pr-pull:
     runs-on: ubuntu-latest
     permissions:
-      actions: read
+      actions: write
       checks: read
       contents: write
       issues: read
@@ -48,3 +48,8 @@ jobs:
         uses: Homebrew/actions/git-try-push@1e34f2e2acaa766b7efacb8c26352e6abbb023f9 # 2026.09.13.1
         with:
           branch: main
+
+      - name: Check the pushed commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run tests.yml --ref main
