@@ -6,11 +6,12 @@ import argparse
 import subprocess
 import sys
 
-from . import __version__
 from .core import ui
 
 
 def _version_string() -> str:
+    from . import __version__
+
     try:
         import os
 
