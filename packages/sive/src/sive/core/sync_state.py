@@ -7,9 +7,9 @@ import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from .bw import sync, unlock
-from .credentials import get_password
+from .bw import sync
 from .pending_queue import drain_pending
+from .vault_session import acquire_session
 from .vaults import load_vault
 
 STATE_DIR = Path.home() / ".local" / "state" / "sive"
@@ -143,8 +143,7 @@ def run_sync_vault(vault_name: str) -> int:
     try:
         try:
             vault = load_vault(vault_name)
-            password = get_password(vault_name)
-            session = unlock(password, appdata_dir=str(vault.appdata_dir))
+            session = acquire_session(vault_name, appdata_dir=str(vault.appdata_dir))
             sync(session, appdata_dir=str(vault.appdata_dir))
             drain_pending(vault_name, session, str(vault.appdata_dir))
             _write_snapshot_from_session(vault_name, session)

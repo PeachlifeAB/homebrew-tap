@@ -45,7 +45,7 @@ def test_missing_vault_config_raises_source_error(mock_load_vault):
 
 
 @patch("sive.core.source_loader.load_vault")
-@patch("sive.core.source_loader.get_password")
+@patch("sive.core.credentials.get_password")
 def test_missing_keychain_entry_raises_source_error(mock_get_password, mock_load_vault):
     from sive.core.keychain_macos import KeychainError
     from sive.core.vaults import VaultConfig
@@ -67,8 +67,8 @@ def test_missing_keychain_entry_raises_source_error(mock_get_password, mock_load
 
 
 @patch("sive.core.source_loader.load_vault")
-@patch("sive.core.source_loader.get_password")
-@patch("sive.core.source_loader.unlock")
+@patch("sive.core.credentials.get_password")
+@patch("sive.core.bw.unlock")
 @patch("sive.core.source_loader.list_folders")
 @patch("sive.core.source_loader.list_items_in_folder")
 @patch("sive.core.source_loader.extract_env_vars")
@@ -112,7 +112,7 @@ def test_load_source_happy_path(
 
 
 @patch("sive.core.source_loader.load_vault")
-@patch("sive.core.source_loader.get_password")
+@patch("sive.core.credentials.get_password")
 @patch("sive.core.source_loader.list_folders")
 @patch("sive.core.source_loader.list_items_in_folder")
 @patch("sive.core.source_loader.extract_env_vars")
@@ -149,8 +149,8 @@ def test_load_source_uses_provided_session(
 
 
 @patch("sive.core.source_loader.load_vault")
-@patch("sive.core.source_loader.get_password")
-@patch("sive.core.source_loader.unlock")
+@patch("sive.core.credentials.get_password")
+@patch("sive.core.bw.unlock")
 @patch("sive.core.source_loader.list_folders")
 def test_list_folders_failure_raises_source_error(
     mock_list_folders,
@@ -180,8 +180,8 @@ def test_list_folders_failure_raises_source_error(
 
 
 @patch("sive.core.source_loader.load_vault")
-@patch("sive.core.source_loader.get_password")
-@patch("sive.core.source_loader.unlock")
+@patch("sive.core.credentials.get_password")
+@patch("sive.core.bw.unlock")
 @patch("sive.core.source_loader.list_folders")
 def test_missing_folder_raises_source_error(
     mock_list_folders,
@@ -205,8 +205,8 @@ def test_missing_folder_raises_source_error(
 
 
 @patch("sive.core.source_loader.load_vault")
-@patch("sive.core.source_loader.get_password")
-@patch("sive.core.source_loader.unlock")
+@patch("sive.core.credentials.get_password")
+@patch("sive.core.bw.unlock")
 @patch("sive.core.source_loader.list_folders")
 @patch("sive.core.source_loader.list_items_in_folder")
 @patch("sive.core.source_loader.extract_env_vars")

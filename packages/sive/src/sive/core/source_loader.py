@@ -10,10 +10,8 @@ from .bw import (
     extract_env_vars,
     list_folders,
     list_items_in_folder,
-    unlock,
 )
-from .credentials import CredentialError as KeychainError
-from .credentials import get_password
+from .vault_session import VaultSessionError, acquire_session
 from .vaults import ConfigError, load_vault
 
 # Matches: <vault>.folder:<selector>
@@ -85,20 +83,10 @@ def _ensure_session(
     *,
     appdata_dir: str,
 ) -> str:
-    """Return a valid bw session key, unlocking silently if needed."""
-    if existing_session:
-        return existing_session
-
-    # Try to get master password from keychain and unlock
     try:
-        password = get_password(vault_name)
-    except KeychainError as e:
-        raise SourceError(str(e)) from e
-
-    try:
-        return unlock(password, appdata_dir=appdata_dir)
-    except BWError as e:
-        raise SourceError(f"Silent unlock failed: {e}") from e
+        return acquire_session(vault_name, existing_session, appdata_dir=appdata_dir)
+    except VaultSessionError as error:
+        raise SourceError(str(error)) from error
 
 
 def load_source(source: str, session_key: str | None = None) -> dict[str, str]:

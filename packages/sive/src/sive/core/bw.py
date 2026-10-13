@@ -155,6 +155,14 @@ def get_status(*, appdata_dir: str | Path | None = None) -> dict[str, Any]:
         return {"status": "unknown"}
 
 
+def login(email: str, master_password: str, *, appdata_dir: str | Path) -> str:
+    return _run(
+        ["login", email, "--passwordenv", "SIVE_BW_PASSWORD", "--raw"],
+        env={"SIVE_BW_PASSWORD": master_password},
+        appdata_dir=appdata_dir,
+    )
+
+
 def unlock(master_password: str, *, appdata_dir: str | Path | None = None) -> str:
     """Unlock the vault and return the session key."""
     env = {"SIVE_BW_PASSWORD": master_password}

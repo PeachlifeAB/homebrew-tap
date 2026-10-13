@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -13,6 +11,7 @@ from ..core.bw import (
     ensure_bw_cli,
     get_status,
     list_env_tags,
+    login,
     set_server,
     unlock,
 )
@@ -31,6 +30,7 @@ from ..core.credentials import (
 )
 from ..core.project_config import write_project_config
 from ..core.sync_state import load_known_tags
+from ..core.vault_session import VaultSessionError, acquire_session
 from ..core.vaults import (
     CONFIG_DIR,
     VAULTS_TOML,
@@ -124,23 +124,15 @@ def _resolve_server(vault, vault_name: str) -> tuple[object, str, str, dict[str,
 
 
 def _bw_login(email: str, master_password: str, appdata_dir: str) -> int:
-    """Run `bw login` under a spinner and return its exit code."""
-    env = {
-        **os.environ,
-        "SIVE_BW_PASSWORD": master_password,
-        "BITWARDENCLI_APPDATA_DIR": appdata_dir,
-    }
-    return ui.spin(
-        "Logging in...",
-        lambda: (
-            subprocess.run(
-                ["bw", "login", email, "--passwordenv", "SIVE_BW_PASSWORD"],
-                env=env,
-                capture_output=True,
-                check=False,
-            ).returncode
-        ),
-    )
+    try:
+        ui.spin(
+            "Logging in...",
+            lambda: login(email, master_password, appdata_dir=appdata_dir),
+        )
+    except BWError as error:
+        ui.echo(f"sive: {error}", file=sys.stderr)
+        return 1
+    return 0
 
 
 def _login_to_bitwarden(
@@ -461,12 +453,11 @@ def _unlock_vault(vault_name: str) -> tuple[str, str] | None:
     """Silent unlock. Returns (session_key, appdata_dir) or None on any error."""
     try:
         vault = load_vault(vault_name)
-        password = get_stored_password(vault_name)
-        session_key = unlock(password, appdata_dir=str(vault.appdata_dir))
+        session_key = acquire_session(vault_name, appdata_dir=str(vault.appdata_dir))
         return session_key, str(vault.appdata_dir)
     except KeychainError:
         return None
-    except BWError as e:
+    except VaultSessionError as e:
         ui.echo(f"  Warning: silent unlock failed ({e})", file=sys.stderr)
         return None
     except Exception as e:  # noqa: BLE001
