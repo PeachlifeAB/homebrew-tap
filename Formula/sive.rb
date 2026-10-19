@@ -13,6 +13,11 @@ class Sive < Formula
     regex(/^sive-v?(\d+(?:\.\d+)+)$/i)
   end
 
+  bottle do
+    root_url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/sive-0.1.11"
+    sha256 cellar: :any_skip_relocation, arm64_tahoe: "ec4e3024041470f0efb7634be4913d5bb0d2c4906442b279a9fce8a29e007c9c"
+  end
+
   depends_on arch: :arm64
   depends_on "bitwarden-cli"
   depends_on "cryptography"
