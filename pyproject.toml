@@ -37,6 +37,8 @@ test = [
     "sive",
     "bgtail",
     "lgtvctrl",
+    "pytest-cov~=7.1",
+    "coverage>=7.16,<8",
 ]
 dev = [
   "git-cliff~=2.14",
@@ -169,7 +171,13 @@ addopts = "--import-mode=importlib"
 exclude_dirs = ["tests"]
 skips = ["B101"]
 
+[tool.coverage.run]
+branch = true
+patch = ["subprocess"]
+data_file = ".gdog/logs/gates/tests/scratch/coverage.db"
+
 [tool.poe.tasks]
+
 deadcode = { cmd = "vulture", help = "scan for dead code" }
 quality = { cmd = "qlty check --all --no-fix --no-progress", help = "run qlty.sh check only" }
 quality-fix = { cmd = "qlty check --all --fix --no-progress", help = "run qlty.sh and auto-fix" }
@@ -178,7 +186,7 @@ lint-fix = { cmd = "ruff check --fix src tests packages", help = "lint and auto-
 fmt = { cmd = "ruff format src tests packages", help = "format sources" }
 fmt-check = { cmd = "ruff format --check src tests packages", help = "verify formatting" }
 typecheck = { cmd = "mypy src tests", help = "typecheck" }
-test = { cmd = "pytest", help = "run tests" }
+test = { cmd = "pytest --cov=sive --cov-branch --cov-report=term --cov-report=json:${GDOG_GATE_LOG_DIR:-.gdog/logs/gates/tests/scratch}/coverage.json --cov-report=xml:${GDOG_GATE_LOG_DIR:-.gdog/logs/gates/tests/scratch}/coverage.xml --junitxml=${GDOG_GATE_LOG_DIR:-.gdog/logs/gates/tests/scratch}/junit.xml", help = "run tests" }
 mutate = { cmd = "mutmut run --max-children 1", help = "run mutation tests serially" }
 build = { cmd = "uv build --all-packages", help = "build all workspace packages" }
 

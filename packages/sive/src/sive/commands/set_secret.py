@@ -7,7 +7,6 @@ from dataclasses import dataclass
 
 from ..core import ui
 from ..core.bw import (
-    NOT_LOGGED_IN_MARKERS,
     SECURE_NOTE_TYPE,
     BWError,
     create_folder,
@@ -22,6 +21,7 @@ from ..core.project_config import read_project_tags, read_project_vault
 from ..core.snapshot import read_snapshot, write_snapshot
 from ..core.snapshot_crypto import ensure_key
 from ..core.source_loader import SourceError, _ensure_session, load_source
+from ..core.vault_session import VaultAuthenticationError
 from ..core.vaults import ConfigError, load_vault
 
 _NETWORK_MARKERS = (
@@ -36,6 +36,8 @@ _NETWORK_MARKERS = (
 
 
 def _is_network_error(exc: Exception) -> bool:
+    if isinstance(exc.__cause__, VaultAuthenticationError):
+        return False
     msg = str(exc).lower()
     return any(marker in msg for marker in _NETWORK_MARKERS)
 
@@ -152,14 +154,8 @@ def _open_session(vault_name: str, appdata_dir: str, *, delete: bool) -> str | N
     except SourceError as e:
         if _is_network_error(e) and not delete:
             raise _Queued from e
-        if NOT_LOGGED_IN_MARKERS[0] not in str(e).lower():
-            ui.echo(f"sive: {e}", file=sys.stderr)
-            return None
-
-    from ..commands.setup import run_relogin
-
-    rc, session, _ = run_relogin(vault_name)
-    return session if rc == 0 and session else None
+        ui.echo(f"sive: {e}", file=sys.stderr)
+        return None
 
 
 def _apply_mutation(

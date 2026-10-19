@@ -1,0 +1,12 @@
+{
+  "vault_name": "fixture-vault",
+  "email": "fixture@example.com",
+  "password": "fixture-only-password",
+  "session": "fixture-only-session",
+  "server": "https://vault.example.com",
+  "rejected_grant": "Unable to fetch ServerConfig from https://vault.example.com/api ErrorResponse { response: { error: 'invalid_grant' }, statusCode: 400 }\nUnhandledPromiseRejection: ERR_UNHANDLED_REJECTION",
+  "missing_login": "You are not logged in.",
+  "wrong_password": "Invalid master password",
+  "network_failure": "Unable to fetch ServerConfig: connection refused",
+  "additional_factor": "Two-step login code is required."
+}

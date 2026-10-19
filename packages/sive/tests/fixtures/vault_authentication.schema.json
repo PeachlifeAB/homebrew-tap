@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["vault_name", "email", "password", "session", "server", "rejected_grant", "missing_login", "wrong_password", "network_failure", "additional_factor"],
+  "properties": {
+    "vault_name": {"type": "string", "minLength": 1},
+    "email": {"type": "string", "minLength": 1},
+    "password": {"type": "string", "minLength": 1},
+    "session": {"type": "string", "minLength": 1},
+    "server": {"type": "string", "minLength": 1},
+    "rejected_grant": {"type": "string", "minLength": 1},
+    "missing_login": {"type": "string", "minLength": 1},
+    "wrong_password": {"type": "string", "minLength": 1},
+    "network_failure": {"type": "string", "minLength": 1},
+    "additional_factor": {"type": "string", "minLength": 1}
+  }
+}

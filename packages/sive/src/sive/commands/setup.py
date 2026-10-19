@@ -19,9 +19,6 @@ from ..core.credentials import (
     CredentialError as KeychainError,
 )
 from ..core.credentials import (
-    get_email as get_stored_email,
-)
-from ..core.credentials import (
     get_password as get_stored_password,
 )
 from ..core.credentials import (
@@ -464,96 +461,6 @@ def _unlock_vault(vault_name: str) -> tuple[str, str] | None:
         # BWError is handled above; anything else still only warns.
         ui.echo(f"  Warning: unexpected error during unlock ({e})", file=sys.stderr)
         return None
-
-
-def _prompt_credentials(vault_name: str, bw_email: str) -> tuple[str, str]:
-    """Ask for whatever is not already known: the email, and always the password."""
-    email = get_stored_email(vault_name) or bw_email
-    if email:
-        ui.echo(f"  Email: {email}")
-    else:
-        email = ui.input("Email", flag="--email")
-    return email, ui.password("Master password", flag="--password-stdin")
-
-
-def _authenticate(
-    bw_status: str,
-    bw_email: str,
-    email: str,
-    master_password: str,
-    appdata_dir: str,
-) -> bool:
-    """Ensure bw holds an account for this email. False means it reported why not.
-
-    An account already present cannot be switched from here, only unlocked, so
-    a mismatched email is an error rather than a fresh login.
-    """
-    if bw_status in (BW_LOCKED, BW_UNLOCKED):
-        if bw_email.lower() != email.lower():
-            ui.echo(
-                f"sive: already logged in as {bw_email}. Run "
-                f"'BITWARDENCLI_APPDATA_DIR={appdata_dir} bw logout' to switch.",
-                file=sys.stderr,
-            )
-            return False
-        return True
-
-    if _bw_login(email, master_password, appdata_dir) != 0:
-        ui.echo("sive: login failed.", file=sys.stderr)
-        return False
-    return True
-
-
-def run_relogin(vault_name: str = "personal") -> tuple[int, str | None, str | None]:
-    """Re-authenticate a configured vault.
-
-    Returns (exit_code, session_key, appdata_dir).
-    """
-    try:
-        vault = load_vault(vault_name)
-    except ConfigError as e:
-        ui.echo(f"sive: {e}", file=sys.stderr)
-        return 1, None, None
-
-    appdata_dir = str(vault.appdata_dir)
-    status = _get_status_or_empty(appdata_dir)
-
-    try:
-        set_server(vault.server, status=status, appdata_dir=appdata_dir)
-    except BWError as e:
-        ui.echo(f"sive: {e}", file=sys.stderr)
-        return 1, None, None
-
-    bw_status = status.get("status", "unauthenticated")
-    bw_email = status.get("userEmail", "")
-
-    ui.echo("Vault session expired. Please log in again.")
-    email, master_password = _prompt_credentials(vault_name, bw_email)
-
-    if not _authenticate(bw_status, bw_email, email, master_password, appdata_dir):
-        return 1, None, None
-
-    try:
-        session_key = ui.spin(
-            "Unlocking...", lambda: unlock(master_password, appdata_dir=appdata_dir)
-        )
-    except BWError as e:
-        ui.echo(f"sive: unlock failed: {e}", file=sys.stderr)
-        return 1, None, None
-
-    try:
-        store_password(vault_name, master_password)
-        store_email(vault_name, email)
-    except KeychainError as e:
-        _print_keychain_error(e)
-        ui.echo(
-            "  Logged in for this command, but silent unlock is still disabled.",
-            file=sys.stderr,
-        )
-        return 0, session_key, appdata_dir
-
-    ui.echo("  Logged in and credential storage updated.")
-    return 0, session_key, appdata_dir
 
 
 def _bootstrap_ready() -> bool:

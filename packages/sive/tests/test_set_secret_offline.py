@@ -96,7 +96,6 @@ def test_set_fails_hard_on_auth_error(state_dir: Path, vault_config: MagicMock) 
         patch("sive.commands.set_secret._ensure_session", side_effect=auth_error),
         patch("sive.commands.set_secret.read_project_vault", return_value="personal"),
         patch("sive.commands.set_secret.read_project_tags", return_value=["global"]),
-        patch("sive.commands.setup.run_relogin", return_value=(1, None, None)),
     ):
         rc = run("EXA_API_KEY", "secret123", tag="global", vault_name="personal")
 

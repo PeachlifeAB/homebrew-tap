@@ -24,6 +24,17 @@ class BWAuthError(BWError):
     pass
 
 
+class BWLoginRequiredError(BWAuthError):
+    pass
+
+
+CREDENTIAL_ENVIRONMENT_VARIABLE = "SIVE_BW_PASSWORD"
+BW_SESSION_ENV = "BW_SESSION"
+LOGIN_COMMAND = "login"
+SESSION_OPTION = "--session"
+REJECTED_GRANT_MARKER = "invalid_grant"
+
+
 ENV_VAR_RE = re.compile(r"^[A-Za-z_]\w*$")
 _TAG_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_\-]*$")
 
@@ -41,6 +52,8 @@ def _bw_env(
     env: dict[str, str] | None, appdata_dir: str | Path | None
 ) -> dict[str, str]:
     full_env = {**os.environ}
+    if appdata_dir is not None:
+        full_env.pop(BW_SESSION_ENV, None)
     if env:
         full_env.update(env)
     if appdata_dir is not None:
@@ -55,9 +68,11 @@ def _raise_for_failure(
     stderr = result.stderr.strip()
     lowered = stderr.lower()
     if any(marker in lowered for marker in NOT_LOGGED_IN_MARKERS):
-        raise BWAuthError("Not logged in. Run 'sive setup' to authenticate.")
+        raise BWLoginRequiredError("Not logged in. Run 'sive setup' to authenticate.")
     if any(marker in lowered for marker in BAD_PASSWORD_MARKERS):
-        raise BWAuthError("Incorrect master password.")
+        raise BWAuthError(f"Incorrect master password: {stderr}")
+    if args[0] != LOGIN_COMMAND and REJECTED_GRANT_MARKER in lowered:
+        raise BWLoginRequiredError(f"bw {args[0]} rejected authentication: {stderr}")
     raise BWError(f"bw {args[0]} failed: {stderr or result.stdout.strip()}")
 
 
@@ -83,6 +98,13 @@ def _run(
         ) from error
 
     if result.returncode != 0:
+        secrets = [full_env.get(CREDENTIAL_ENVIRONMENT_VARIABLE, "")]
+        if SESSION_OPTION in args:
+            secrets.append(args[args.index(SESSION_OPTION) + 1])
+        for secret in secrets:
+            if secret:
+                result.stderr = result.stderr.replace(secret, "[redacted]")
+                result.stdout = result.stdout.replace(secret, "[redacted]")
         _raise_for_failure(args, result)
 
     return result.stdout.strip()
@@ -157,23 +179,35 @@ def get_status(*, appdata_dir: str | Path | None = None) -> dict[str, Any]:
 
 def login(email: str, master_password: str, *, appdata_dir: str | Path) -> str:
     return _run(
-        ["login", email, "--passwordenv", "SIVE_BW_PASSWORD", "--raw"],
-        env={"SIVE_BW_PASSWORD": master_password},
+        [
+            LOGIN_COMMAND,
+            email,
+            "--passwordenv",
+            CREDENTIAL_ENVIRONMENT_VARIABLE,
+            "--raw",
+        ],
+        env={CREDENTIAL_ENVIRONMENT_VARIABLE: master_password},
         appdata_dir=appdata_dir,
     )
 
 
+def logout(*, appdata_dir: str | Path) -> None:
+    _run(["logout"], appdata_dir=appdata_dir)
+
+
 def unlock(master_password: str, *, appdata_dir: str | Path | None = None) -> str:
     """Unlock the vault and return the session key."""
-    env = {"SIVE_BW_PASSWORD": master_password}
+    env = {CREDENTIAL_ENVIRONMENT_VARIABLE: master_password}
     try:
         session_key = _run(
-            ["unlock", "--passwordenv", "SIVE_BW_PASSWORD", "--raw"],
+            ["unlock", "--passwordenv", CREDENTIAL_ENVIRONMENT_VARIABLE, "--raw"],
             env=env,
             appdata_dir=appdata_dir,
         )
+    except BWAuthError:
+        raise
     except BWError as e:
-        raise BWAuthError(f"Unlock failed: {e}") from e
+        raise BWError(f"Unlock failed: {e}") from e
     if not session_key:
         raise BWAuthError("Unlock returned empty session key.")
     return session_key

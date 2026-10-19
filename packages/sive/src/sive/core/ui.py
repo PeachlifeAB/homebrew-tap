@@ -246,6 +246,6 @@ def choose(
         for opt in options:
             echo(f"    • {opt}")
         raw = builtins.input("  Enter choices (space or comma separated): ").strip()
-        chosen = [t.strip() for t in raw.replace(",", " ").split() if t.strip()]
+        chosen = raw.replace(",", " ").split()
         valid = set(options)
         return [c for c in chosen if c in valid]
