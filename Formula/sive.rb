@@ -3,19 +3,14 @@ class Sive < Formula
 
   desc "Sync secrets from your vault into your shell"
   homepage "https://github.com/PeachlifeAB/sive"
-  url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/sive-0.1.10/sive-0.1.10.tar.gz"
-  sha256 "5db73a015d7fa282ececa0a58a0bb46a2d54d2c1fbf958c87555186cdf315596"
+  url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/sive-0.1.11/sive-0.1.11.tar.gz"
+  sha256 "45d0189ebfd1a2274210123cc41dad8df875c6523d4651fb56713d5cb7f79b56"
   license "MIT"
 
   livecheck do
     url :stable
     strategy :github_releases
     regex(/^sive-v?(\d+(?:\.\d+)+)$/i)
-  end
-
-  bottle do
-    root_url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/sive-0.1.10"
-    sha256 cellar: :any_skip_relocation, arm64_tahoe: "2a41e2a53111c786abc0a5c030714d96ae44a32d4a17693584b6ecd420787386"
   end
 
   depends_on arch: :arm64
