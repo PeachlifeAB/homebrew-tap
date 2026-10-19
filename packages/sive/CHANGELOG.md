@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Recover expired vault authentication using stored credentials, without another password prompt.
+- Recover vault authentication and verify coverage
 - Reduce command startup overhead by loading version metadata only when requested.
 
 ## [0.1.10] - 2026-10-10
