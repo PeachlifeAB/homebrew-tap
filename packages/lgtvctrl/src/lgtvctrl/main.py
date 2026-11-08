@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 import argparse
 import asyncio
 import json
 import sys
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any, cast
 
 from lgtvctrl import __version__, auth, query, raw, screen
 from lgtvctrl import brightness as brightness_module
@@ -48,7 +52,7 @@ def _lock_path() -> Path:
 
 
 @contextmanager
-def webos_lock():
+def webos_lock() -> Iterator[None]:
     if fcntl is None:
         yield
         return
@@ -188,14 +192,14 @@ async def _raw(args: argparse.Namespace, client: object) -> int:
 
 
 def _add_level_commands(
-    subparsers: argparse._SubParsersAction,
+    subparsers: Any,
     name: str,
     handler: object,
     *,
     step_default: int,
 ) -> argparse.ArgumentParser:
     """Register an up/down/set/get group, the shape dim and volume share."""
-    parser = subparsers.add_parser(name)
+    parser = cast(argparse.ArgumentParser, subparsers.add_parser(name))
     parser.set_defaults(func=handler, needs_client=True)
     actions = parser.add_subparsers(dest=f"{name}_action")
     for step in (UP, DOWN):
@@ -207,7 +211,7 @@ def _add_level_commands(
     return parser
 
 
-def _add_screen_and_power(subparsers: argparse._SubParsersAction) -> None:
+def _add_screen_and_power(subparsers: Any) -> None:
     screen_parser = subparsers.add_parser("screen")
     screen_parser.set_defaults(func=_screen, needs_client=True)
     screen_actions = screen_parser.add_subparsers(dest="screen_action")
@@ -221,7 +225,7 @@ def _add_screen_and_power(subparsers: argparse._SubParsersAction) -> None:
         power_actions.add_parser(action)
 
 
-def _add_input(subparsers: argparse._SubParsersAction) -> None:
+def _add_input(subparsers: Any) -> None:
     parser = subparsers.add_parser("input")
     parser.set_defaults(func=_input, needs_client=True)
     actions = parser.add_subparsers(dest="input_action")
@@ -230,7 +234,7 @@ def _add_input(subparsers: argparse._SubParsersAction) -> None:
     actions.add_parser(LIST).add_argument("--json", action="store_true")
 
 
-def _add_query_and_raw(subparsers: argparse._SubParsersAction) -> None:
+def _add_query_and_raw(subparsers: Any) -> None:
     query_parser = subparsers.add_parser("query")
     query_parser.set_defaults(func=_query, needs_client=True)
     query_parser.add_argument("setting", nargs="?", default="picture")
@@ -279,10 +283,10 @@ async def main_async(argv: list[str] | None = None) -> int:
         return 0
 
     if not args.needs_client:
-        return await handler(args, None)
+        return cast(int, await handler(args, None))
 
     async with get_client() as client:
-        return await handler(args, client)
+        return cast(int, await handler(args, client))
 
 
 def main(argv: list[str] | None = None) -> int:

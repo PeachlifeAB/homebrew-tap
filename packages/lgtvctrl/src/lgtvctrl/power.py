@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import socket
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from lgtvctrl.config import CONFIG_FILE, Config, read_json
 from lgtvctrl.display import DisplayRecovery
@@ -19,7 +19,7 @@ MAC_HEX_DIGITS = 12
 RECOVERY_ATTEMPTS = 3
 
 
-def load_config() -> dict:
+def load_config() -> dict[str, Any]:
     return read_json(CONFIG_FILE)
 
 

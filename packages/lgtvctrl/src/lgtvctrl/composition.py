@@ -19,5 +19,5 @@ def display_recovery() -> DisplayRecovery:
     if platforms.is_linux():
         return LinuxDisplayRecovery()
     raise UnsupportedPlatformError(
-        f"host display recovery is unsupported on platform {platforms.sys.platform!r}"
+        f"host display recovery is unsupported on platform {platforms.name()!r}"
     )

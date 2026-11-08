@@ -92,7 +92,7 @@ def _store_error(vault_name: str, account: str, stderr: str) -> KeychainError:
 
 def _add_generic_password(
     service: str, account: str, encoded_value: str
-) -> subprocess.CompletedProcess:
+) -> subprocess.CompletedProcess[str]:
     # `man security`: -U updates an existing item in place, avoiding a delete+add
     # sequence that could leave setup half-broken when delete succeeds but add fails.
     # The CLI cannot read `-w` from stdin; without a value it prompts on /dev/tty, so
@@ -124,21 +124,21 @@ def _is_locked_keychain_error(stderr: str) -> bool:
     )
 
 
-def _is_locked(result: subprocess.CompletedProcess) -> bool:
+def _is_locked(result: subprocess.CompletedProcess[str]) -> bool:
     return result.returncode == LOCKED_KEYCHAIN_EXIT or (
         result.returncode != 0 and _is_locked_keychain_error(result.stderr or "")
     )
 
 
-def _raw(result: subprocess.CompletedProcess) -> str:
+def _raw(result: subprocess.CompletedProcess[str]) -> str:
     output = (result.stderr or "").strip() or "(no output)"
     return f"`{' '.join(result.args)}` exited {result.returncode}: {output}"
 
 
 def _unlock_failed_error(
     keychain: Path,
-    probe: subprocess.CompletedProcess,
-    unlock: subprocess.CompletedProcess,
+    probe: subprocess.CompletedProcess[str],
+    unlock: subprocess.CompletedProcess[str],
 ) -> KeychainError:
     return KeychainError(
         "Could not unlock the login keychain, so sive cannot read its credentials.\n"

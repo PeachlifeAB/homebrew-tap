@@ -19,3 +19,8 @@ def is_macos() -> bool:
 
 def is_linux() -> bool:
     return sys.platform.startswith(LINUX)
+
+
+def name() -> str:
+    """The running platform, as ``sys.platform`` reports it."""
+    return sys.platform
