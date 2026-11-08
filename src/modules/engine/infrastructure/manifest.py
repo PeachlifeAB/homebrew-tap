@@ -27,7 +27,12 @@ _FORMULA_KEYS = _COMMON_KEYS | {
     "smoke_args",
     "macos_only",
 }
-_CASK_KEYS = _COMMON_KEYS | {"source_repository", "cask", "release_notes_template"}
+_CASK_KEYS = _COMMON_KEYS | {
+    "source_repository",
+    "cask",
+    "release_notes_template",
+    "supported_architectures",
+}
 _KEYS_BY_KIND = {ProductKind.FORMULA: _FORMULA_KEYS, ProductKind.CASK: _CASK_KEYS}
 _MUTABLE_KEYS = {
     "version",
@@ -105,6 +110,19 @@ def _formula(data: dict[str, Any]) -> ProductManifest:
 
 
 def _cask(data: dict[str, Any]) -> CaskManifest:
+    architectures = data["supported_architectures"]
+    if (
+        not isinstance(architectures, list)
+        or not architectures
+        or any(
+            not isinstance(value, str) or value not in {"arm64"}
+            for value in architectures
+        )
+        or len(set(architectures)) != len(architectures)
+    ):
+        raise ReleaseError(
+            "manifest supported_architectures must contain only arm64, exactly once"
+        )
     if VERSION_PLACEHOLDER not in data["release_notes_template"]:
         raise ReleaseError(
             f"manifest release_notes_template must contain {VERSION_PLACEHOLDER}"
@@ -116,6 +134,7 @@ def _cask(data: dict[str, Any]) -> CaskManifest:
         source_repository=data["source_repository"],
         cask=data["cask"],
         release_notes_template=data["release_notes_template"],
+        supported_architectures=architectures,
     )
 
 

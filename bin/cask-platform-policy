@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+tap_root="$(cd "$(dirname "$0")/.." && pwd)"
+export PYTHONPATH="$tap_root/src${PYTHONPATH:+:$PYTHONPATH}"
+exec uv run --project "$tap_root" python -m modules.engine.api.cask_platform_policy --tap-root "$tap_root" "$@"

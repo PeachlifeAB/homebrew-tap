@@ -87,6 +87,7 @@ class CaskManifest:
     cask: str
     """The cask token: the file is `Casks/<cask>.rb`."""
 
+    supported_architectures: list[str]
     release_notes_template: str
     """Where the upstream publishes notes for a version, with `{version}`."""
 

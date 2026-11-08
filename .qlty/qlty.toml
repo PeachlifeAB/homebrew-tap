@@ -117,6 +117,7 @@ file_patterns = ["Formula/**", "Casks/**"]
 globs = [
   "*.sh",
   "*.bash",
+  "bin/cask-platform-policy",
   "bin/repo-state",
   "bin/require-formulae-passed",
 ]

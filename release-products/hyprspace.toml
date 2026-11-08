@@ -5,3 +5,4 @@ repository = "PeachlifeAB/hyprspace-releases"
 source_repository = "PeachlifeAB/hyprspace-core"
 cask = "hyprspace"
 release_notes_template = "https://github.com/PeachlifeAB/hyprspace-releases/releases/tag/v{version}"
+supported_architectures = ["arm64"]
