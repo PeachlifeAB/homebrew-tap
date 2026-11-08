@@ -45,6 +45,18 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn('--head-sha="$HEAD_SHA"', self.publish)
         self.assertNotIn("packages: write", self.publish)
 
+    def test_publish_dispatches_both_main_validation_workflows(self) -> None:
+        push_step = self.publish.index("- name: Push commits")
+        for workflow in ("tests.yml", "quality.yml"):
+            with self.subTest(workflow=workflow):
+                command = f"gh workflow run {workflow} --ref main"
+                self.assertIn(command, self.publish)
+                self.assertGreater(self.publish.index(command), push_step)
+                target = (
+                    Path(__file__).resolve().parents[1] / ".github/workflows" / workflow
+                )
+                self.assertIn("workflow_dispatch:", target.read_text())
+
 
 class ShellcheckCoverageTests(unittest.TestCase):
     def test_every_bash_script_in_bin_is_shellchecked(self) -> None:

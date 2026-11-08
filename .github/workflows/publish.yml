@@ -52,4 +52,6 @@ jobs:
       - name: Check the pushed commit
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run tests.yml --ref main
+        run: |
+          gh workflow run tests.yml --ref main
+          gh workflow run quality.yml --ref main

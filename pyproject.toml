@@ -31,14 +31,14 @@ lgtvctrl = { workspace = true }
 
 [dependency-groups]
 test = [
-    "pytest~=9.0",
-    "mutmut>=3.3,<3.9",
-    "jsonschema~=4.25",
-    "sive",
-    "bgtail",
-    "lgtvctrl",
-    "pytest-cov~=7.1",
-    "coverage>=7.16,<8",
+  "pytest~=9.0",
+  "mutmut>=3.3,<3.9",
+  "jsonschema~=4.25",
+  "sive",
+  "bgtail",
+  "lgtvctrl",
+  "pytest-cov~=7.1",
+  "coverage>=7.16,<8",
 ]
 dev = [
   "git-cliff~=2.14",
@@ -156,12 +156,7 @@ exclude = "/build/"
 pythonpath = ["src", "packages/sive/src", "packages/lgtvctrl/src", "packages/bgtail/src"]
 # Every package's suite runs from the root, so a broken package fails the
 # workspace gate rather than passing unnoticed.
-testpaths = [
-  "tests",
-  "packages/bgtail/tests",
-  "packages/lgtvctrl/tests",
-  "packages/sive/tests",
-]
+testpaths = ["tests", "packages/bgtail/tests", "packages/lgtvctrl/tests", "packages/sive/tests"]
 # The root and each package have a tests/ directory, so module names collide
 # under the default prepend import mode. No ini key exists for this; it is
 # settable only as a command-line option.
