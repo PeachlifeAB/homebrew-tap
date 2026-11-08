@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sive.commands import setup
 
 
@@ -246,6 +248,7 @@ def test_patch_mise_config_migrates_legacy_vfox_directive(tmp_path):
     assert "env_cache = false" in content
 
 
+@pytest.mark.usefixtures("available_runtime_tools")
 def test_run_project_setup_writes_dot_sive(capsys):
     with (
         patch("sive.commands.setup._bootstrap_ready", return_value=True),

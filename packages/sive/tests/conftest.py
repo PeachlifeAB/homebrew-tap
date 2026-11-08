@@ -29,3 +29,16 @@ def authentication() -> AuthenticationFixture:
     schema = json.loads((directory / "vault_authentication.schema.json").read_text())
     Draft202012Validator(schema).validate(values)
     return AuthenticationFixture(**values)
+
+
+@pytest.fixture
+def available_runtime_tools(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import os
+
+    directory = tmp_path / "runtime-tools"
+    directory.mkdir()
+    for name in ["bw", "mise"]:
+        executable = directory / name
+        executable.write_text("#!/bin/sh\nexit 97\n", encoding="utf-8")
+        executable.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{directory}{os.pathsep}{os.environ.get('PATH', '')}")

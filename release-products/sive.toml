@@ -9,4 +9,4 @@ tag_prefix = "sive-"
 asset_template = "sive-{version}.tar.gz"
 quality_task = "test"
 smoke_args = ["_mise-env", "--tag", "release-smoke"]
-macos_only = true
+macos_only = false
