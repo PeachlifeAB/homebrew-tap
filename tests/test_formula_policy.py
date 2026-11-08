@@ -346,6 +346,26 @@ class ManifestPolicyTests(unittest.TestCase):
                     "formula does not exclude Intel macOS",
                 )
 
+    def test_readme_platform_sentence_comes_from_the_manifests(self) -> None:
+        """The README and the Linux CI selector read the product manifests.
+        Changing one manifest changes the sentence the README must show."""
+        from dataclasses import replace
+
+        from modules.engine.domain.platform_policy import platform_summary
+
+        products = self._products()
+        formulae = [item for item in products if isinstance(item, ProductManifest)]
+        casks = [item for item in products if isinstance(item, CaskManifest)]
+        summary = platform_summary(formulae, casks)
+        readme = (self.root / "README.md").read_text()
+        workflow = (self.root / ".github/workflows/quality.yml").read_text()
+        self.assertIn(summary, readme)
+        self.assertIn("grep -q '^macos_only = false$'", workflow)
+        flipped = replace(formulae[0], macos_only=not formulae[0].macos_only)
+        changed = platform_summary([flipped, *formulae[1:]], casks)
+        self.assertNotEqual(changed, summary)
+        self.assertNotIn(changed, readme)
+
     def test_no_product_declares_intel_macos_support(self) -> None:
         """A product's own platform constraint narrows the supported set and
         never widens it: no formula or cask may declare Intel support, whatever

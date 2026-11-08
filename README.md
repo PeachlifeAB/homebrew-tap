@@ -38,7 +38,7 @@ brew install <FORMULA>
 | ---------- | ---- | ----------- |
 | [hyprspace](https://hyprspace.net/) | [cask](Casks/hyprspace.rb) | Tiling window manager based on AeroSpace |
 
-sive requires macOS. bgtail and lgtvctrl also run on Linux.
+bgtail, lgtvctrl and sive also run on Linux. hyprspace requires macOS.
 
 ## Updating and uninstalling
 
