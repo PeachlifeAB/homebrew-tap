@@ -76,6 +76,21 @@ class TapRelease:
     def formula_path(self) -> Path:
         return self.tap_root / "Formula" / f"{self.manifest.formula}.rb"
 
+    def is_published(self, version: str) -> bool:
+        """Check the remote main formula, not an unmerged local release branch."""
+        self.git.run(["fetch", "--quiet", "origin", "main"], cwd=self.tap_root)
+        source = self.git.output(
+            ["show", f"origin/main:Formula/{self.manifest.formula}.rb"],
+            cwd=self.tap_root,
+        )
+        return bool(
+            re.search(
+                rf'^ {{2}}url "{re.escape(self.manifest.asset_url(version))}"$',
+                source,
+                re.MULTILINE,
+            )
+        )
+
     def release_gates(self) -> tuple[Gate, ...]:
         """The checks the tap owns, so CI cannot be the first to find them."""
 

@@ -121,6 +121,13 @@ def _resume(args: argparse.Namespace, c: Components) -> None:
     producer, tap = c.producer, c.tap
     observation = producer.observe(args.version)
     producer.require_resumable(observation)
+    if (
+        observation.remote_tag_commit is not None
+        and observation.github_release_exists
+        and tap.is_published(args.version)
+    ):
+        tap.post_verify(args.version)
+        return
     if observation.remote_tag_commit is None:
         if (
             project_version(producer.project_root, producer.manifest.package)
