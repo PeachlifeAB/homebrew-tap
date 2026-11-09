@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.12] - 2026-11-09
+
+### Fixed
+
+- Override gum input placeholder and timeout
+
 ## [0.1.11] - 2026-10-19
 
 ### Fixed
@@ -26,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.9] - 2026-09-20
 
+[0.1.12]: https://github.com/PeachlifeAB/homebrew-tap/compare/sive-0.1.11...sive-0.1.12
 [0.1.11]: https://github.com/PeachlifeAB/homebrew-tap/compare/sive-0.1.10...sive-0.1.11
 [0.1.10]: https://github.com/PeachlifeAB/homebrew-tap/compare/sive-0.1.9...sive-0.1.10
 [0.1.9]: https://github.com/PeachlifeAB/homebrew-tap/compare/sive-0.1.8...sive-0.1.9
