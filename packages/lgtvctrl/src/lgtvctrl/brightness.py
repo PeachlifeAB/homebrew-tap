@@ -438,7 +438,9 @@ async def increase(client: WebOsClient, amount: int, *, dynamic: bool = False) -
     settings_raw, panel_light_key = await get_picture_settings_and_panel_key(client)
 
     settings: dict[str, int] = {
-        k: int(v) for k, v in settings_raw.items() if v is not None
+        key: int(value)
+        for key, value in settings_raw.items()
+        if isinstance(value, int | str) and not isinstance(value, bool)
     }
 
     if dynamic:
@@ -461,7 +463,9 @@ async def decrease(client: WebOsClient, amount: int, *, dynamic: bool = False) -
     settings_raw, panel_light_key = await get_picture_settings_and_panel_key(client)
 
     settings: dict[str, int] = {
-        k: int(v) for k, v in settings_raw.items() if v is not None
+        key: int(value)
+        for key, value in settings_raw.items()
+        if isinstance(value, int | str) and not isinstance(value, bool)
     }
 
     if dynamic:
@@ -496,7 +500,9 @@ async def get_level(client: WebOsClient, *, dynamic: bool = False) -> int:
 
     settings_raw, panel_light_key = await get_picture_settings_and_panel_key(client)
     settings: dict[str, int] = {
-        k: int(v) for k, v in settings_raw.items() if v is not None
+        key: int(value)
+        for key, value in settings_raw.items()
+        if isinstance(value, int | str) and not isinstance(value, bool)
     }
 
     if dynamic:

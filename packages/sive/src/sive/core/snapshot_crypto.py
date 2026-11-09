@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import secrets
+from typing import cast
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -91,4 +92,7 @@ def decrypt_env(data: bytes, key: bytes) -> dict[str, str]:
     nonce = data[:_NONCE_BYTES]
     ciphertext = data[_NONCE_BYTES:]
     plaintext = AESGCM(key).decrypt(nonce, ciphertext, None)
-    return json.loads(plaintext)
+    parsed = json.loads(plaintext)
+    if not isinstance(parsed, dict):
+        raise TypeError("encrypted env is not an object")
+    return cast(dict[str, str], parsed)

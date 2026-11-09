@@ -25,7 +25,7 @@ async def get_client() -> AsyncGenerator[WebOsClient, None]:
 
     # Imported at call time, not module scope: only an actual connection needs
     # the TV client, so the module stays importable without it installed.
-    from bscpylgtv import WebOsClient  # type: ignore[import-untyped]
+    from bscpylgtv import WebOsClient
 
     client = await WebOsClient.create(
         ip=tv.ip,

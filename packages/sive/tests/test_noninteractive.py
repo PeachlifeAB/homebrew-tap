@@ -118,6 +118,7 @@ def test_setup_flags_become_prompt_answers(monkeypatch):
     assert ui.password("Master password", flag="--password-stdin") == "hunter2"
 
 
+@pytest.mark.usefixtures("available_runtime_tools")
 def test_setup_without_a_terminal_exits_2_without_a_traceback(tmp_path):
     result = subprocess.run(
         [sys.executable, "-m", "sive", "setup"],

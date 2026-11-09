@@ -4,6 +4,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sive.core import sync_state
 from sive.core.vaults import VaultConfig
 
@@ -83,6 +85,7 @@ def test_run_sync_vault_drains_pending_queue_on_success(tmp_path):
     mock_drain.assert_called_once_with("personal", "session", "/tmp/sive-personal")
 
 
+@pytest.mark.usefixtures("available_runtime_tools")
 def test_run_sync_vault_updates_success_state(tmp_path):
     now = datetime(2026, 4, 1, 22, 0, tzinfo=UTC)
     with (
@@ -113,6 +116,7 @@ def test_run_sync_vault_updates_success_state(tmp_path):
     mock_sync.assert_called_once_with("session", appdata_dir="/tmp/sive-personal")
 
 
+@pytest.mark.usefixtures("available_runtime_tools")
 def test_run_sync_vault_updates_error_state(tmp_path):
     now = datetime(2026, 4, 1, 22, 0, tzinfo=UTC)
     with (
@@ -139,6 +143,7 @@ def test_run_sync_vault_updates_error_state(tmp_path):
         assert state["last_error"] == "boom"
 
 
+@pytest.mark.usefixtures("available_runtime_tools")
 def test_run_sync_vault_releases_lock_when_save_state_fails(tmp_path):
     with (
         patch.object(sync_state, "STATE_DIR", tmp_path),

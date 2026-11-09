@@ -7,7 +7,7 @@ import os
 import re
 import subprocess
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import Any, NoReturn, cast
 
 from . import ui
 
@@ -172,7 +172,10 @@ def get_status(*, appdata_dir: str | Path | None = None) -> dict[str, Any]:
     """Return parsed output of 'bw status'."""
     output = _run(["status"], appdata_dir=appdata_dir)
     try:
-        return json.loads(output)
+        parsed = json.loads(output)
+        if isinstance(parsed, dict):
+            return cast(dict[str, Any], parsed)
+        return {"status": "unknown"}
     except json.JSONDecodeError as _error:
         return {"status": "unknown"}
 
@@ -226,7 +229,8 @@ def list_folders(
         ["list", "folders", "--session", session_key], appdata_dir=appdata_dir
     )
     try:
-        return json.loads(output)
+        parsed = json.loads(output)
+        return cast(list[dict[str, Any]], parsed) if isinstance(parsed, list) else []
     except json.JSONDecodeError as _error:
         return []
 
@@ -243,7 +247,8 @@ def list_items_in_folder(
         appdata_dir=appdata_dir,
     )
     try:
-        return json.loads(output)
+        parsed = json.loads(output)
+        return cast(list[dict[str, Any]], parsed) if isinstance(parsed, list) else []
     except json.JSONDecodeError as _error:
         return []
 
@@ -252,7 +257,9 @@ def find_folder_id(folders: list[dict[str, Any]], name: str) -> str | None:
     """Find a folder by exact name. Returns folder ID or None."""
     for folder in folders:
         if folder.get("name") == name:
-            return folder["id"]
+            folder_id = folder.get("id")
+            if isinstance(folder_id, str):
+                return folder_id
     return None
 
 
@@ -267,7 +274,10 @@ def create_folder(
         ["create", "folder", payload, "--session", session_key], appdata_dir=appdata_dir
     )
     try:
-        return json.loads(output)["id"]
+        folder_id = json.loads(output)["id"]
+        if not isinstance(folder_id, str):
+            raise BWError("create folder response has no string id")
+        return folder_id
     except (json.JSONDecodeError, KeyError) as e:
         raise BWError(f"Failed to parse create folder response: {e}") from e
 
@@ -310,7 +320,7 @@ def upsert_note(
             appdata_dir=appdata_dir,
         )
     else:
-        item = {
+        item: dict[str, Any] = {
             "organizationId": None,
             "collectionIds": [],
             "folderId": folder_id,

@@ -8,6 +8,7 @@ import string
 import subprocess
 import urllib.parse
 import urllib.request
+from typing import Any
 from xml.parsers import expat
 
 from lgtvctrl import betterdisplay, platforms
@@ -25,11 +26,11 @@ async def ainput(prompt: str) -> str:
     return (await asyncio.to_thread(input, prompt)).strip()
 
 
-def read_config() -> dict:
+def read_config() -> dict[str, Any]:
     return read_json(CONFIG_FILE)
 
 
-def write_config(data: dict) -> None:
+def write_config(data: dict[str, Any]) -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     CONFIG_FILE.write_text(json.dumps(data, indent=2) + "\n")
 

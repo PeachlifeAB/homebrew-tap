@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import re
 
+from modules.engine.domain.models import CaskManifest, ProductManifest
+
 # The forms Homebrew offers for declaring Intel support (Formula-Cookbook,
 # "Handling different system configurations"; Cask-Cookbook, `depends_on arch`):
 # a single arch symbol, an array of them (casks), an on_intel block, or an Intel
@@ -29,3 +31,26 @@ def intel_declarations(source: str) -> list[str]:
         for form in _INTEL_FORMS
         for match in form.finditer(source)
     ]
+
+
+def platform_summary(
+    products: list[ProductManifest],
+    casks: list[CaskManifest],
+) -> str:
+    """The one sentence the README must show for the declared platform set."""
+    linux = sorted(product.name for product in products if not product.macos_only)
+    macos = sorted(product.name for product in products if product.macos_only)
+    macos.extend(sorted(cask.name for cask in casks))
+    sentences = []
+    if linux:
+        sentences.append(f"{_names(linux)} also run on Linux")
+    if macos:
+        verb = "requires" if len(macos) == 1 else "require"
+        sentences.append(f"{_names(macos)} {verb} macOS")
+    return ". ".join(sentences) + "."
+
+
+def _names(names: list[str]) -> str:
+    if len(names) == 1:
+        return names[0]
+    return f"{', '.join(names[:-1])} and {names[-1]}"

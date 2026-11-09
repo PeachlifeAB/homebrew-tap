@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+from collections.abc import Callable
+from typing import Any
 
 from .core import ui
 
@@ -193,7 +195,7 @@ def _prompt_flags() -> argparse.ArgumentParser:
 _PROMPT_FLAGS = _prompt_flags()
 
 
-def _add_setup(subparsers: argparse._SubParsersAction) -> None:
+def _add_setup(subparsers: Any) -> None:
     parser = subparsers.add_parser(
         "setup", help="Configure current project directory", parents=[_PROMPT_FLAGS]
     )
@@ -219,7 +221,7 @@ def _add_setup(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
-def _add_internal(subparsers: argparse._SubParsersAction) -> None:
+def _add_internal(subparsers: Any) -> None:
     """Commands the mise hook calls, hidden from help."""
     subparsers.add_parser("status", help=argparse.SUPPRESS, parents=[_PROMPT_FLAGS])
 
@@ -236,7 +238,7 @@ def _add_internal(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
-def _add_refresh(subparsers: argparse._SubParsersAction) -> None:
+def _add_refresh(subparsers: Any) -> None:
     parser = subparsers.add_parser(
         "refresh",
         help="Sync local encrypted snapshots from the vault",
@@ -248,7 +250,7 @@ def _add_refresh(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
-def _add_set_and_delete(subparsers: argparse._SubParsersAction) -> None:
+def _add_set_and_delete(subparsers: Any) -> None:
     set_parser = subparsers.add_parser(
         CMD_SET,
         help="Write or delete a secret in a tag folder",
@@ -315,7 +317,7 @@ def _main() -> None:
     _dispatch(args, handler)
 
 
-def _dispatch(args: argparse.Namespace, handler) -> None:
+def _dispatch(args: argparse.Namespace, handler: Callable[..., int]) -> None:
     """Apply the prompt mode, self-heal the keychain, then run the command."""
     ui.configure(
         assume_yes=getattr(args, "yes", False),

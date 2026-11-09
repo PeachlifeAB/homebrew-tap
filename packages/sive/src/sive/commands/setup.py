@@ -32,6 +32,7 @@ from ..core.vaults import (
     CONFIG_DIR,
     VAULTS_TOML,
     ConfigError,
+    VaultConfig,
     load_vault,
     write_vault_stub,
 )
@@ -94,7 +95,9 @@ BW_LOCKED = "locked"
 BW_UNLOCKED = "unlocked"
 
 
-def _resolve_server(vault, vault_name: str) -> tuple[object, str, str, dict[str, str]]:
+def _resolve_server(
+    vault: VaultConfig | None, vault_name: str
+) -> tuple[VaultConfig, str, str, dict[str, str]]:
     """Return (vault, server_url, appdata_dir, status), prompting on first run.
 
     An already-configured vault reuses its server; it is never overwritten
@@ -133,7 +136,11 @@ def _bw_login(email: str, master_password: str, appdata_dir: str) -> int:
 
 
 def _login_to_bitwarden(
-    email: str, master_password: str, appdata_dir: str, status: dict[str, str], vault
+    email: str,
+    master_password: str,
+    appdata_dir: str,
+    status: dict[str, str],
+    _vault: VaultConfig | None,
 ) -> bool:
     """Log in unless bw already holds a session. False means give up."""
     bw_status = status.get("status", "unauthenticated")
@@ -145,7 +152,7 @@ def _login_to_bitwarden(
             return True
         ui.echo(
             f"  Already logged in as {bw_email}.\n"
-            f"  Run 'BITWARDENCLI_APPDATA_DIR={vault.appdata_dir} bw logout'"
+            f"  Run 'BITWARDENCLI_APPDATA_DIR={appdata_dir} bw logout'"
             f" first to switch to {email}.",
             file=sys.stderr,
         )
@@ -213,7 +220,7 @@ def _initialise_vault(vault_name: str, session_key: str) -> None:
 
 def _probe_existing_setup(
     vault_name: str,
-) -> tuple[object | None, str, dict[str, str]]:
+) -> tuple[VaultConfig | None, str, dict[str, str]]:
     """Read the vault config and bw status, tolerating an unconfigured machine.
 
     load_vault raises ConfigError when vaults.toml has no usable entry. The
@@ -246,7 +253,7 @@ def _already_set_up(
 
 
 def _configure_server(
-    vault: object | None,
+    vault: VaultConfig | None,
     vault_name: str,
     appdata_dir: str,
     status: dict[str, str],

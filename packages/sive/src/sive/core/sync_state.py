@@ -6,6 +6,7 @@ import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any, cast
 
 from .bw import sync
 from .pending_queue import drain_pending
@@ -38,17 +39,18 @@ def lock_path(vault_name: str) -> Path:
     return STATE_DIR / f"{vault_name}.sync.lock"
 
 
-def load_sync_state(vault_name: str) -> dict[str, str]:
+def load_sync_state(vault_name: str) -> dict[str, Any]:
     path = state_path(vault_name)
     if not path.exists():
         return {}
     try:
-        return json.loads(path.read_text())
+        parsed = json.loads(path.read_text())
+        return cast(dict[str, Any], parsed) if isinstance(parsed, dict) else {}
     except json.JSONDecodeError as _error:
         return {}
 
 
-def save_sync_state(vault_name: str, state: dict[str, str]) -> None:
+def save_sync_state(vault_name: str, state: dict[str, Any]) -> None:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     state_path(vault_name).write_text(json.dumps(state, indent=2) + "\n")
 
@@ -164,7 +166,7 @@ def run_sync_vault(vault_name: str) -> int:
         release_lock(vault_name)
 
 
-def _update_known_tags(session: str, appdata_dir: str, state: dict) -> None:
+def _update_known_tags(session: str, appdata_dir: str, state: dict[str, Any]) -> None:
     """Persist env/ tag names so setup can read them without a bw call."""
     import logging
 

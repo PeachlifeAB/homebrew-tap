@@ -33,7 +33,7 @@ class LinuxKeyringStore:
     def _api(self) -> KeyringApi:
         if self._keyring_api is None:
             try:
-                import keyring
+                import keyring  # type: ignore[import-not-found]
             except ImportError as error:
                 raise CredentialStoreUnavailableError(
                     "Linux Secret Service support is not installed. "

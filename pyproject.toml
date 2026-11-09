@@ -31,14 +31,14 @@ lgtvctrl = { workspace = true }
 
 [dependency-groups]
 test = [
-    "pytest~=9.0",
-    "mutmut>=3.3,<3.9",
-    "jsonschema~=4.25",
-    "sive",
-    "bgtail",
-    "lgtvctrl",
-    "pytest-cov~=7.1",
-    "coverage>=7.16,<8",
+  "pytest~=9.0",
+  "mutmut>=3.3,<3.9",
+  "jsonschema~=4.25",
+  "sive",
+  "bgtail",
+  "lgtvctrl",
+  "pytest-cov~=7.1",
+  "coverage>=7.16,<8",
 ]
 dev = [
   "git-cliff~=2.14",
@@ -141,27 +141,23 @@ paths = ["src", "packages"]
 
 [tool.mypy]
 explicit_package_bases = true
-# Resolution only, never the checked set: `poe typecheck` runs `mypy src tests`,
-# so naming the packages here cannot add an error to the gate. It lets mypy
-# follow `import sive` and its siblings instead of reporting import-not-found.
+# `poe typecheck` checks src, root tests, and packages. Package tests stay out:
+# an audit's findings there were almost all missing annotations,
+# and pytest owns that surface. These paths let mypy follow the product imports.
 # The same four paths as pytest's pythonpath below, in the same order.
 mypy_path = "src:packages/sive/src:packages/lgtvctrl/src:packages/bgtail/src"
 strict = true
 # .gitignore means nothing to mypy, and it walks into build artefacts during
 # recursive discovery. A setuptools build/ holds a stale duplicate of every
 # module, so each finding there is one already reported against src/.
-exclude = "/build/"
+# Package tests are excluded for the reason above.
+exclude = ["build/", "packages/.*/tests/"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "packages/sive/src", "packages/lgtvctrl/src", "packages/bgtail/src"]
 # Every package's suite runs from the root, so a broken package fails the
 # workspace gate rather than passing unnoticed.
-testpaths = [
-  "tests",
-  "packages/bgtail/tests",
-  "packages/lgtvctrl/tests",
-  "packages/sive/tests",
-]
+testpaths = ["tests", "packages/bgtail/tests", "packages/lgtvctrl/tests", "packages/sive/tests"]
 # The root and each package have a tests/ directory, so module names collide
 # under the default prepend import mode. No ini key exists for this; it is
 # settable only as a command-line option.
@@ -185,7 +181,7 @@ lint = { cmd = "ruff check src tests packages", help = "lint sources" }
 lint-fix = { cmd = "ruff check --fix src tests packages", help = "lint and auto-fix" }
 fmt = { cmd = "ruff format src tests packages", help = "format sources" }
 fmt-check = { cmd = "ruff format --check src tests packages", help = "verify formatting" }
-typecheck = { cmd = "mypy src tests", help = "typecheck" }
+typecheck = { cmd = "mypy src tests packages", help = "typecheck" }
 test = { cmd = "pytest --cov=sive --cov-branch --cov-report=term --cov-report=json:${GDOG_GATE_LOG_DIR:-.gdog/logs/gates/tests/scratch}/coverage.json --cov-report=xml:${GDOG_GATE_LOG_DIR:-.gdog/logs/gates/tests/scratch}/coverage.xml --junitxml=${GDOG_GATE_LOG_DIR:-.gdog/logs/gates/tests/scratch}/junit.xml", help = "run tests" }
 mutate = { cmd = "mutmut run --max-children 1", help = "run mutation tests serially" }
 build = { cmd = "uv build --all-packages", help = "build all workspace packages" }

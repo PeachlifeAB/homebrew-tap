@@ -12,12 +12,12 @@ from ..core.credentials import CredentialError as KeychainError
 from ..core.credentials import get_password
 from ..core.project_config import read_project_tags
 from ..core.sync_state import load_sync_state, sync_is_stale
-from ..core.vaults import ConfigError, load_vault
+from ..core.vaults import ConfigError, VaultConfig, load_vault
 from .setup import ENV_CACHE_KEY, SIVE_MARKER
 
 
 def _print_vault(
-    vault, status: dict[str, str], *, credential_error: str | None
+    vault: VaultConfig, status: dict[str, str], *, credential_error: str | None
 ) -> None:
     server_url = status.get("serverUrl") or vault.server
     ui.echo("Vault:")
@@ -73,7 +73,7 @@ def _print_warnings(
     return 1 if not (hook_configured and cache_enabled and server_matches) else 0
 
 
-def _load_bw_status(vault) -> dict[str, str] | None:
+def _load_bw_status(vault: VaultConfig) -> dict[str, str] | None:
     """Read bw status, reporting the actionable failures. None means give up."""
     try:
         return get_status(appdata_dir=str(vault.appdata_dir))

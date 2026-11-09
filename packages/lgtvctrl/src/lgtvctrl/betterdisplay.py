@@ -90,7 +90,7 @@ def _http_get(url: str, timeout: float = 5.0) -> str:
     """
     try:
         with urlopen(url, timeout=timeout) as resp:
-            return resp.read().decode("utf-8")
+            return str(resp.read().decode("utf-8"))
     except HTTPError as e:
         raise BetterDisplayError(f"HTTP {e.code}: {e.reason}") from e
     except URLError as e:

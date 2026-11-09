@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from bscpylgtv import WebOsClient  # type: ignore[import-untyped]
@@ -46,7 +46,7 @@ async def turn_off(client: WebOsClient) -> None:
     logger.info("Screen turned off")
 
 
-async def get_state(client: WebOsClient) -> dict:
+async def get_state(client: WebOsClient) -> dict[str, Any]:
     """Get current screen state from power state endpoint.
 
     Returns the power state which includes screen state information.

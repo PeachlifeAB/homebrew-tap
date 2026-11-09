@@ -5,11 +5,12 @@ from __future__ import annotations
 import json
 import tomllib
 from pathlib import Path
+from typing import Any
 
 PROJECT_CONFIG = Path(".sive")
 
 
-def _read_toml(path: Path) -> dict | None:
+def _read_toml(path: Path) -> dict[str, Any] | None:
     if not path.exists():
         return None
     try:
@@ -20,7 +21,7 @@ def _read_toml(path: Path) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
-def read_project_config(config_path: Path | None = None) -> dict | None:
+def read_project_config(config_path: Path | None = None) -> dict[str, Any] | None:
     return _read_toml(config_path or (Path.cwd() / PROJECT_CONFIG))
 
 
