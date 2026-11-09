@@ -3,8 +3,8 @@ class Bgtail < Formula
 
   desc "Run long-running commands detached with minimal heartbeat"
   homepage "https://github.com/PeachlifeAB/bgtail"
-  url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/bgtail-0.1.2/bgtail-0.1.2.tar.gz"
-  sha256 "6bff80753ebd5c6454af4b79aa665bd27c9873bf2601011aa392a35d9345295d"
+  url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/bgtail-0.1.3/bgtail-0.1.3.tar.gz"
+  sha256 "f25bdb1e0b1b53a60dd09bda2c29646842e0a9716ed18d6e74e58b2a7cf74b77"
   license "MIT"
 
   livecheck do
@@ -13,12 +13,7 @@ class Bgtail < Formula
     regex(/^bgtail-v?(\d+(?:\.\d+)+)$/i)
   end
 
-  bottle do
-    root_url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/bgtail-0.1.2"
-    sha256 cellar: :any_skip_relocation, arm64_tahoe: "8ac45e0ecaf69a52b7e803e0e8efc34cc0111817b5485b216edb96527e1c69c2"
-  end
-
-  depends_on "python@3.13"
+  depends_on "python@3.14"
 
   on_macos do
     depends_on arch: :arm64
@@ -33,7 +28,7 @@ class Bgtail < Formula
   end
 
   def install
-    venv = virtualenv_create(libexec, "python3.13")
+    venv = virtualenv_create(libexec, "python3.14")
     venv.pip_install resources
     venv.pip_install_and_link buildpath, build_isolation: false
   end
