@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.13] - 2026-11-09
+
+### Added
+
+- Package Linux credential dependencies
+
+### Fixed
+
+- Check package source with mypy
+
 ## [0.1.12] - 2026-11-09
 
 ### Fixed
@@ -32,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.9] - 2026-09-20
 
+[0.1.13]: https://github.com/PeachlifeAB/homebrew-tap/compare/sive-0.1.12...sive-0.1.13
 [0.1.12]: https://github.com/PeachlifeAB/homebrew-tap/compare/sive-0.1.11...sive-0.1.12
 [0.1.11]: https://github.com/PeachlifeAB/homebrew-tap/compare/sive-0.1.10...sive-0.1.11
 [0.1.10]: https://github.com/PeachlifeAB/homebrew-tap/compare/sive-0.1.9...sive-0.1.10

@@ -1350,7 +1350,7 @@ wheels = [
 
 [[package]]
 name = "sive"
-version = "0.1.12"
+version = "0.1.13"
 source = { editable = "packages/sive" }
 dependencies = [
     { name = "cryptography" },
