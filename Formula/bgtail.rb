@@ -13,6 +13,11 @@ class Bgtail < Formula
     regex(/^bgtail-v?(\d+(?:\.\d+)+)$/i)
   end
 
+  bottle do
+    root_url "https://github.com/PeachlifeAB/homebrew-tap/releases/download/bgtail-0.1.3"
+    sha256 cellar: :any_skip_relocation, arm64_tahoe: "e28fe7a0d627f7a1ad3f42c9c1d344498e7a064a8345657d9285604ad5634d86"
+  end
+
   depends_on "python@3.14"
 
   on_macos do
