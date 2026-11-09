@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import builtins
 import getpass as _getpass
+import os
 import shutil
 import subprocess
 import sys
@@ -60,15 +61,38 @@ def _run_gum(
     caller's existing fallback path handles a missing or unusable gum the
     same way, whichever it turns out to be.
     """
+    env = os.environ.copy()
+    env.pop("GUM_INPUT_PLACEHOLDER", None)
+    env.pop("GUM_INPUT_TIMEOUT", None)
     result = subprocess.run(
         args,
         stdout=subprocess.PIPE if capture else None,
         text=True,
         check=False,
+        env=env,
     )
     if result.returncode == SIGINT_EXIT_CODE:
         raise KeyboardInterrupt
     return result
+
+
+def _gum_input_args(
+    prompt: str, *, placeholder: str = "", password: bool = False
+) -> list[str]:
+    """Gum input args that do not use its default placeholder or timeout."""
+    args = [
+        "gum",
+        "input",
+        "--prompt",
+        f"{prompt}: ",
+        "--placeholder",
+        placeholder,
+        "--timeout",
+        "0s",
+    ]
+    if password:
+        args.append("--password")
+    return args
 
 
 def echo(
@@ -142,9 +166,7 @@ def input(prompt: str, *, placeholder: str = "", flag: str = "") -> str:
     if answer is not None:
         return answer
     try:
-        args = ["gum", "input", "--prompt", f"{prompt}: "]
-        if placeholder:
-            args += ["--placeholder", placeholder]
+        args = _gum_input_args(prompt, placeholder=placeholder)
         result = _run_gum(args)
         if result.returncode != 0:
             raise FileNotFoundError
@@ -159,7 +181,7 @@ def password(prompt: str, *, flag: str = "") -> str:
     if answer is not None:
         return answer
     try:
-        args = ["gum", "input", "--password", "--prompt", f"{prompt}: "]
+        args = _gum_input_args(prompt, password=True)
         result = _run_gum(args)
         if result.returncode != 0:
             raise FileNotFoundError

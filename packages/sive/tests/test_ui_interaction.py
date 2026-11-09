@@ -43,6 +43,32 @@ def test_input_uses_gum_or_plain_fallback(
     assert calls
 
 
+def test_gum_input_overrides_default_placeholder_and_timeout(
+    monkeypatch, authentication
+):
+    calls = []
+
+    def run(args, **kwargs):
+        calls.append((args, kwargs.get("env")))
+        return subprocess.CompletedProcess(args, 0, authentication.email)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    monkeypatch.setenv("GUM_INPUT_PLACEHOLDER", "Type something...")
+    monkeypatch.setenv("GUM_INPUT_TIMEOUT", "30s")
+    ui.password(authentication.vault_name)
+    ui.input(authentication.vault_name)
+    assert calls
+    for args, env in calls:
+        assert args[1] == "input"
+        assert "--placeholder" in args
+        assert args[args.index("--placeholder") + 1] == ""
+        assert "--timeout" in args
+        assert args[args.index("--timeout") + 1] == "0s"
+        assert env is not None
+        assert "GUM_INPUT_PLACEHOLDER" not in env
+        assert "GUM_INPUT_TIMEOUT" not in env
+
+
 @pytest.mark.parametrize("exit_code", [0, 1, 127])
 @pytest.mark.parametrize("default", [False, True])
 def test_confirmation_preserves_explicit_choice(monkeypatch, exit_code, default):
